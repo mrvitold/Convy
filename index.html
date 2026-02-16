@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Convy – Excel į i.SAF XML</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <h1>Convy</h1>
+      <p class="tagline">PVM sąskaitų faktūrų Excel → i.SAF XML (VMI)</p>
+      <div class="wizard-steps" role="tablist">
+        <button type="button" class="step-dot active" data-step="1" aria-label="Žingsnis 1: Įkelti failą" title="1. Įkelti failą"></button>
+        <button type="button" class="step-dot" data-step="2" aria-label="Žingsnis 2: Įmonės duomenys" title="2. Įmonės duomenys"></button>
+        <button type="button" class="step-dot" data-step="3" aria-label="Žingsnis 3: Stulpelių susiejimas" title="3. Stulpelių susiejimas"></button>
+        <button type="button" class="step-dot" data-step="4" aria-label="Žingsnis 4: Konvertuoti" title="4. Konvertuoti"></button>
+      </div>
+    </header>
+
+    <main class="main">
+      <!-- Step 1: Upload -->
+      <section id="step-1" class="step-panel active" data-step="1">
+        <h2>1. Įkelkite Excel failą</h2>
+        <label class="upload-zone" id="upload-zone">
+          <p>Spustelėkite arba nutempkite XLSX failą čia</p>
+          <p class="upload-hint">Tik XLSX failai</p>
+          <input type="file" id="file-input" accept=".xlsx,.xls" tabindex="-1" aria-hidden="true">
+        </label>
+        <div id="upload-result" class="upload-result hidden">
+          <p><strong id="file-name"></strong> <button type="button" id="change-file-btn" class="btn-link">Pakeisti failą</button></p>
+          <p id="step1-ai-status" class="step1-ai-status"></p>
+          <p id="sheet-info"></p>
+          <div id="step1-override" class="step1-override">
+            <label id="sheet-select-label" class="hidden">Lapas: <select id="sheet-select"></select></label>
+            <label>Antraštės eilutė: <input type="number" id="header-row" min="1" value="1"></label>
+            <p class="step1-override-hint">Pakeiskite tik jei automatinis nustatymas suklydo arba norite kitaip.</p>
+          </div>
+          <button type="button" id="confirm-upload">Toliau – įmonės duomenys</button>
+        </div>
+      </section>
+
+      <!-- Step 2: Company / file info -->
+      <section id="step-2" class="step-panel" data-step="2">
+        <h2>2. Įmonės ir failo informacija</h2>
+        <p class="step-desc">Šie duomenys bus įtraukti į XML antraštę. VMI reikalauja įmonės kodo ir PVM kodo. Išsaugomi naršyklėje kitam kartui.</p>
+        <form id="company-form" class="form-grid">
+          <div class="form-group">
+            <label for="company-name">Įmonės pavadinimas</label>
+            <input type="text" id="company-name" placeholder="pvz. UAB Pavadinimas">
+          </div>
+          <div class="form-group">
+            <label for="company-code"><strong>Įmonės kodas (9 skaitmenų)</strong> – būtina</label>
+            <input type="text" id="company-code" placeholder="123456789" maxlength="9" pattern="[0-9]{9}">
+          </div>
+          <div class="form-group">
+            <label for="vat-number"><strong>PVM mokėtojo kodas</strong> – būtina</label>
+            <input type="text" id="vat-number" placeholder="LT123456789 arba ND">
+          </div>
+          <div class="form-group">
+            <label for="data-type">Duomenų tipas</label>
+            <select id="data-type">
+              <option value="F">F – pilnas failas (išrašytos ir gautos SF)</option>
+              <option value="S">S – tik išrašytos SF</option>
+              <option value="P">P – tik gautos SF</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="period-start">Laikotarpio pradžios data</label>
+            <input type="date" id="period-start">
+          </div>
+          <div class="form-group">
+            <label for="period-end">Laikotarpio pabaigos data</label>
+            <input type="date" id="period-end">
+          </div>
+        </form>
+        <div class="step-actions">
+          <button type="button" class="btn-secondary" data-goto="1">Atgal</button>
+          <button type="button" id="goto-mapping" class="btn-primary">Toliau – stulpelių susiejimas</button>
+        </div>
+      </section>
+
+      <!-- Step 3: Column mapping -->
+      <section id="step-3" class="step-panel" data-step="3">
+        <h2>3. Susiekite stulpelius</h2>
+        <p class="step-desc step-desc-friendly">Jūsų Excel faile <strong>kiekviena eilutė</strong> = viena sąskaita arba jos eilutė. Pasirinkite, kuris stulpelis atitinka kurį lauką. Paryškinti laukai būtini XML; kitus galite praleisti. Stulpelius galite rinktis pagal pavadinimą arba raidę (A, B, C…).</p>
+        <p id="ollama-status" class="ollama-status mapping-status"></p>
+        <div id="mapping-table-wrap" class="mapping-table-wrap">
+          <p class="mapping-required-hint"><strong>Būtini laukai</strong> (turėtų būti užpildyti)</p>
+          <table id="mapping-table" class="mapping-table">
+            <thead>
+              <tr>
+                <th>i.SAF laukas</th>
+                <th>Excel stulpelis</th>
+              </tr>
+            </thead>
+            <tbody id="mapping-tbody-required"></tbody>
+          </table>
+          <p class="mapping-optional-hint">Nebūtini laukai (galite praleisti, jei stulpelio nėra)</p>
+          <table id="mapping-table-optional" class="mapping-table mapping-table-optional">
+            <thead>
+              <tr>
+                <th>i.SAF laukas</th>
+                <th>Excel stulpelis</th>
+              </tr>
+            </thead>
+            <tbody id="mapping-tbody-optional"></tbody>
+          </table>
+        </div>
+        <div id="sample-preview" class="sample-preview">
+          <h3>Jūsų duomenų peržiūra (pirmos eilutės)</h3>
+          <div id="sample-table-wrap"></div>
+        </div>
+        <div class="step-actions">
+          <button type="button" class="btn-secondary" data-goto="2">Atgal</button>
+          <button type="button" id="goto-convert" class="btn-primary">Toliau – konvertuoti</button>
+        </div>
+      </section>
+
+      <!-- Step 4: Convert & missing data Q&A -->
+      <section id="step-4" class="step-panel" data-step="4">
+        <h2>4. Konvertuoti į i.SAF XML</h2>
+        <div id="missing-data-section" class="missing-data-section hidden">
+          <p class="missing-intro">Kai kurių reikalingų duomenų trūksta. Atsakykite į klausimus:</p>
+          <div id="missing-questions"></div>
+          <div class="step-actions">
+            <button type="button" id="apply-missing-answers">Taikyti ir tikrinti dar kartą</button>
+          </div>
+        </div>
+        <div id="convert-section" class="convert-section">
+          <p id="convert-status" class="convert-status"></p>
+          <button type="button" id="do-convert" class="btn-primary">Konvertuoti į i.SAF XML</button>
+          <div id="download-section" class="download-section hidden">
+            <p>XML failas paruoštas.</p>
+            <button type="button" id="download-xml" class="btn-primary">Atsisiųsti XML</button>
+          </div>
+        </div>
+        <div class="step-actions">
+          <button type="button" class="btn-secondary" data-goto="3">Atgal</button>
+          <button type="button" id="goto-start" class="btn-secondary">Grįžti į pradžią</button>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p>Duomenys apdorojami jūsų įrenginyje. Jei savininkas įjungė automatinį analizavimą ir stulpelių pasiūlymą (config faile), lapo pavadinimas, antraštės ir pirmos eilutės gali būti siunčiami į tą paslaugą. i.SAF XML generuojamas vietoje.</p>
+    </footer>
+  </div>
+
+  <script src="js/xlsx.full.min.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/parser.js"></script>
+  <script src="js/mapping.js"></script>
+  <script src="js/missing-data.js"></script>
+  <script src="js/isaf-builder.js"></script>
+  <script src="js/gemini.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

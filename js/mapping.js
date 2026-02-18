@@ -48,6 +48,72 @@ var ConvyMapping = {
   },
 
   /**
+   * Normalize date to YYYY-MM-DD for i.SAF. Handles Excel serial, Date objects, YYYY-MM-DD, DD.MM.YYYY, MM/DD/YY.
+   */
+  normalizeDateToYMD(val) {
+    if (val == null || val === '') return '';
+    if (val instanceof Date) {
+      if (isNaN(val.getTime())) return '';
+      return val.getFullYear() + '-' + String(val.getMonth() + 1).padStart(2, '0') + '-' + String(val.getDate()).padStart(2, '0');
+    }
+    const s = String(val).trim();
+    if (!s) return '';
+    const m1 = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m1) return m1[0];
+    const m2 = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+    if (m2) {
+      const [, d, mo, y] = m2;
+      return y + '-' + mo.padStart(2, '0') + '-' + d.padStart(2, '0');
+    }
+    const m3 = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2})$/);
+    if (m3) {
+      const [, d, mo, yy] = m3;
+      const y = parseInt(yy, 10) >= 0 && parseInt(yy, 10) <= 50 ? 2000 + parseInt(yy, 10) : 1900 + parseInt(yy, 10);
+      return y + '-' + mo.padStart(2, '0') + '-' + d.padStart(2, '0');
+    }
+    const m4 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (m4) {
+      const [, a, b, y] = m4;
+      const mo = parseInt(a, 10) <= 12 ? a : b;
+      const d = parseInt(a, 10) <= 12 ? b : a;
+      return y + '-' + mo.padStart(2, '0') + '-' + d.padStart(2, '0');
+    }
+    const m5 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/);
+    if (m5) {
+      const [, a, b, yy] = m5;
+      const y = parseInt(yy, 10) >= 0 && parseInt(yy, 10) <= 50 ? 2000 + parseInt(yy, 10) : 1900 + parseInt(yy, 10);
+      const mo = parseInt(a, 10) <= 12 ? a : b;
+      const d = parseInt(a, 10) <= 12 ? b : a;
+      return y + '-' + mo.padStart(2, '0') + '-' + d.padStart(2, '0');
+    }
+    if (typeof val === 'number' && val > 0) {
+      const excelEpoch = new Date(1899, 11, 30);
+      const d = new Date(excelEpoch.getTime() + val * 86400000);
+      if (isNaN(d.getTime())) return '';
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+    const d = new Date(s);
+    if (isNaN(d.getTime())) return '';
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  },
+
+  /**
+   * Remove duplicate column assignments: each column may map to only one field. First field wins.
+   */
+  deduplicateMapping(mapping) {
+    const seen = new Set();
+    const out = { ...mapping };
+    this.excelMappableFields.forEach(f => {
+      const col = out[f.id];
+      if (col && col !== '—') {
+        if (seen.has(col)) out[f.id] = '—';
+        else seen.add(col);
+      }
+    });
+    return out;
+  },
+
+  /**
    * Apply current mapping (object: fieldId -> columnKey) to sheet data (array of objects with column keys).
    * Returns array of normalized invoice rows { fieldId: value }.
    */
@@ -65,11 +131,14 @@ var ConvyMapping = {
       if (r === 0) return 'PVM4';
       return 'PVM1';
     };
+    const deduped = this.deduplicateMapping(mapping);
     return sheetObjects.map(row => {
       const out = {};
       this.excelMappableFields.forEach(f => {
-        const col = mapping[f.id];
-        out[f.id] = col && col !== '—' && row[col] != null ? row[col] : '';
+        const col = deduped[f.id];
+        let val = col && col !== '—' && row[col] != null ? row[col] : '';
+        if (f.id === 'invoiceDate' && val) val = this.normalizeDateToYMD(val) || val;
+        out[f.id] = val;
       });
       if ((out.grossAmount == null || out.grossAmount === '') && (out.netAmount != null && out.netAmount !== '') && (out.vatAmount != null && out.vatAmount !== '')) {
         const net = parseNum(out.netAmount);
@@ -87,7 +156,22 @@ var ConvyMapping = {
       if ((out.vatRate == null || out.vatRate === '') && (out.netAmount != null && out.netAmount !== '') && (out.vatAmount != null && out.vatAmount !== '')) {
         const net = parseNum(out.netAmount);
         const vat = parseNum(out.vatAmount);
-        if (!isNaN(net) && net !== 0) out.vatRate = String(Math.round((vat / net) * 100 * 100) / 100);
+        if (!isNaN(net) && net !== 0) {
+          const rate = (vat / net) * 100;
+          out.vatRate = String(Math.round(rate * 100) / 100);
+          const stdRates = [0, 5, 9, 21];
+          const near = stdRates.some(r => Math.abs(rate - r) <= 1.5);
+          if (!near) out._vatRateSuspicious = true;
+        }
+      } else if (out.vatRate != null && out.vatRate !== '') {
+        const r = parseNum(out.vatRate);
+        if (!isNaN(r)) {
+          const stdRates = [0, 5, 9, 21];
+          if (!stdRates.some(sr => Math.abs(r - sr) <= 1.5)) out._vatRateSuspicious = true;
+        }
+      }
+      if ((out.counterpartyCountry == null || String(out.counterpartyCountry).trim() === '') && (out.counterpartyVatNumber != null && String(out.counterpartyVatNumber).trim().toUpperCase().startsWith('LT'))) {
+        out.counterpartyCountry = 'LT';
       }
       return out;
     });
@@ -129,7 +213,7 @@ var ConvyMapping = {
       }
       case 'counterpartyVatNumber': {
         const str = (v) => String(v).trim().toLowerCase();
-        matchCount = all.filter(s => /^LT[0-9]{9}$/i.test(String(s).replace(/\s/g, '')) || str(s) === 'nd').length;
+        matchCount = all.filter(s => /^LT[0-9]{8,12}$/i.test(String(s).replace(/\s/g, '')) || str(s) === 'nd').length;
         break;
       }
       case 'counterpartyCountry': {
@@ -150,6 +234,11 @@ var ConvyMapping = {
       case 'vatRate': {
         matchCount = all.filter(s => /^\d+([.,]\d+)?%?$/.test(String(s).replace(',', '.').replace('%', ''))).length;
         break;
+      }
+      case 'vatAmount': {
+        matchCount = all.filter(s => /^-?\d+([.,]\d+)?$/.test(String(s).replace(',', '.'))).length;
+        break;
+      }
       default:
         return 0;
     }
@@ -192,7 +281,8 @@ var ConvyMapping = {
       for (let i = 0; i < (headers || []).length; i++) {
         const h = lower(headers[i]);
         const hNorm = norm(headers[i]);
-        if (f.id === 'vatAmount' && ['kodas','numeris','sąskaitos','faktūros','tarifas','be pvm'].some(s => h.includes(s))) continue;
+        if (f.id === 'vatAmount' && (hNorm.includes('fakturos') || hNorm.includes('saskaitos') || ['kodas','numeris','tarifas','be pvm','data','tipas'].some(s => hNorm.includes(norm(s)) || h.includes(s)))) continue;
+        if (f.id === 'netAmount' && (hNorm.includes(norm('pvm suma')) || h.includes('pvm suma')) && !(hNorm.includes(norm('be pvm')) || h.includes('be pvm'))) continue;
         if (f.id === 'counterpartyRegistrationNumber' && (h.includes('pvm') || h.includes('šalies') || h.includes('salies'))) continue;
         if (f.id === 'invoiceNumber' && ((h.includes('data') && !h.includes('nr') && !h.includes('numeris')) || h.includes('mokesčių mokėtojo') || h.includes('identifikacinis'))) continue;
         if (f.id === 'invoiceDate' && (h.includes(' nr') || h.includes(' nr.') || (h.includes('numeris') && !h.includes('data')))) continue;
@@ -206,7 +296,7 @@ var ConvyMapping = {
 
     if (sampleRows && sampleRows.length > 0 && columnKeys.length > 0) {
       const usedColumns = new Set(Object.values(mapping).filter(v => v && v !== '—'));
-      const contentFields = ['documentType', 'counterpartyRegistrationNumber', 'counterpartyVatNumber', 'counterpartyCountry', 'description', 'quantity', 'unitPrice', 'vatRate'];
+      const contentFields = ['documentType', 'counterpartyRegistrationNumber', 'counterpartyVatNumber', 'counterpartyCountry', 'description', 'quantity', 'unitPrice', 'vatRate', 'vatAmount'];
       contentFields.forEach(fieldId => {
         if (mapping[fieldId] && mapping[fieldId] !== '—') return;
         let bestKey = null;
@@ -227,7 +317,7 @@ var ConvyMapping = {
       });
     }
 
-    return mapping;
+    return this.deduplicateMapping(mapping);
   },
 };
 (function(g){ if (g) { g.ConvyMapping = ConvyMapping; } })(typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null);

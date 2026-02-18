@@ -6,7 +6,7 @@ const ConvyMissingData = {
   questions: {
     companyName: 'Įmonės pavadinimas nerastas. Įveskite įmonės pavadinimą.',
     registrationNumber: 'Įmonės kodas nerastas failo antraštėje. Įveskite įmonės kodą (9 skaitmenų).',
-    vatNumber: 'PVM mokėtojo kodas neįvestas. Įveskite PVM kodą (pvz. LT123456789) arba ND, jei neturi.',
+    vatNumber: 'PVM mokėtojo kodas neįvestas. Įveskite PVM kodą (pvz. LT123456789 arba LT123456789012) arba ND, jei neturi.',
     dataType: 'Pasirinkite duomenų tipą: F (pilnas), S (tik išrašytos SF), P (tik gautos SF).',
     selectionStartDate: 'Laikotarpio pradžios data trūksta. Pasirinkite pradžios datą.',
     selectionEndDate: 'Laikotarpio pabaigos data trūksta. Pasirinkite pabaigos datą.',
@@ -14,7 +14,9 @@ const ConvyMissingData = {
 
   hints: {
     registrationNumber: 'Įmonės kodas turi būti 9 skaitmenų.',
-    vatNumber: 'PVM kodas pradedamas LT arba įrašykite ND.',
+    vatNumber: 'PVM kodas: LT + 8–12 skaitmenų arba ND.',
+    selectionStartDate: 'Data turi būti nuo 30 m. atgal iki 5 m. į priekį.',
+    selectionEndDate: 'Data turi būti nuo 30 m. atgal iki 5 m. į priekį.',
   },
 
   /**
@@ -23,6 +25,20 @@ const ConvyMissingData = {
    * @param {string} value
    * @returns {boolean} true if valid
    */
+  /** Date range: 30 years ago to 5 years ahead */
+  _dateInRange(dateStr) {
+    if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return false;
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const min = new Date(today);
+    min.setFullYear(min.getFullYear() - 30);
+    const max = new Date(today);
+    max.setFullYear(max.getFullYear() + 5);
+    return d >= min && d <= max;
+  },
+
   validate(fieldId, value) {
     const v = (value != null ? String(value) : '').trim();
     switch (fieldId) {
@@ -30,10 +46,10 @@ const ConvyMissingData = {
       case 'companyCode':
         return /^[0-9]{9}$/.test(v.replace(/\s/g, ''));
       case 'vatNumber':
-        return v.toUpperCase() === 'ND' || /^LT[0-9]{9}$/.test(v.replace(/\s/g, '').toUpperCase());
+        return v.toUpperCase() === 'ND' || /^LT[0-9]{8,12}$/.test(v.replace(/\s/g, '').toUpperCase());
       case 'selectionStartDate':
       case 'selectionEndDate':
-        return /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(new Date(v).getTime());
+        return /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(new Date(v).getTime()) && this._dateInRange(v);
       case 'dataType':
         return ['F', 'S', 'P'].includes(v);
       default:
@@ -79,9 +95,13 @@ const ConvyMissingData = {
     fields.forEach(({ id, key }) => {
       const value = h[key];
       if (!this.validate(id, value)) {
+        let message = this.questions[id] || `Trūksta: ${id}`;
+        if ((id === 'selectionStartDate' || id === 'selectionEndDate') && value && /^\d{4}-\d{2}-\d{2}$/.test(String(value).trim()) && !this._dateInRange(String(value).trim())) {
+          message = (id === 'selectionStartDate' ? 'Laikotarpio pradžios' : 'Laikotarpio pabaigos') + ' data už leidžiamo laiko (30 m. atgal – 5 m. į priekį).';
+        }
         out.push({
           fieldId: id,
-          message: this.questions[id] || `Trūksta: ${id}`,
+          message,
           hint: this.hints[id],
         });
       }
@@ -90,18 +110,56 @@ const ConvyMissingData = {
   },
 
   /**
+   * Normalize date to YYYY-MM-DD for range check.
+   */
+  _normalizeDate(val) {
+    if (val == null || val === '') return null;
+    const s = String(val).trim();
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m) return m[0];
+    let d;
+    if (typeof val === 'number' && val > 0) {
+      d = new Date((val - 25569) * 86400 * 1000);
+    } else {
+      d = new Date(s);
+    }
+    if (isNaN(d.getTime())) return null;
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  },
+
+  /**
    * Check mapped rows for missing required invoice-level fields (e.g. invoice number, date).
+   * Also checks date range and VAT rate validity.
    * Returns list of { invoiceIndex, fieldId, message } for first N issues.
    */
-  checkMappedRows(mappedRows, maxIssues = 10) {
+  checkMappedRows(mappedRows, maxIssues = 15) {
     const issues = [];
     (mappedRows || []).forEach((row, i) => {
       if (issues.length >= maxIssues) return;
       if (!(row.invoiceNumber != null && String(row.invoiceNumber).trim())) {
         issues.push({ invoiceIndex: i, fieldId: 'invoiceNumber', message: `Eilutė ${i + 1}: trūksta sąskaitos faktūros numerio.` });
       }
-      if (!(row.invoiceDate != null && String(row.invoiceDate).trim())) {
+      const dateVal = row.invoiceDate != null ? String(row.invoiceDate).trim() : '';
+      if (!dateVal) {
         issues.push({ invoiceIndex: i, fieldId: 'invoiceDate', message: `Eilutė ${i + 1}: trūksta sąskaitos datos.` });
+      } else {
+        const norm = this._normalizeDate(row.invoiceDate);
+        if (norm && !this._dateInRange(norm)) {
+          issues.push({ invoiceIndex: i, fieldId: 'invoiceDate', message: `Eilutė ${i + 1}: data už leidžiamo laiko (30 m. atgal – 5 m. į priekį).` });
+        }
+      }
+      if (row._vatRateSuspicious) {
+        issues.push({ invoiceIndex: i, fieldId: 'vatRate', message: `Eilutė ${i + 1}: mokesčio tarifas neatitinka standartinių (0, 5, 9, 21%). Patikrinkite.` });
+      }
+      const regNum = (row.counterpartyRegistrationNumber != null ? String(row.counterpartyRegistrationNumber).replace(/\s/g, '') : '');
+      const isPlaceholder = (v) => /\([^)]+\)/.test(String(v || '').trim());
+      if (regNum && !isPlaceholder(regNum) && !/^[0-9]{8,12}$/.test(regNum)) {
+        issues.push({ invoiceIndex: i, fieldId: 'counterpartyRegistrationNumber', message: `Eilutė ${i + 1}: pirkėjo/tiekėjo kodas turėtų būti 8–12 skaitmenų.` });
+      }
+      const vatNum = (row.counterpartyVatNumber != null ? String(row.counterpartyVatNumber).trim().toUpperCase().replace(/\s/g, '') : '');
+      const vatValid = !vatNum || vatNum === 'ND' || /^LT[0-9]{8,12}$/.test(vatNum) || /^[0-9]{8,12}$/.test(vatNum);
+      if (vatNum && !isPlaceholder(vatNum) && !vatValid) {
+        issues.push({ invoiceIndex: i, fieldId: 'counterpartyVatNumber', message: `Eilutė ${i + 1}: PVM kodas turėtų būti LT + 8–12 skaitmenų arba ND.` });
       }
     });
     return issues;

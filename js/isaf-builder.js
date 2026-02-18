@@ -92,7 +92,16 @@ const ConvyISAF = {
     xml += '    </SelectionCriteria>\n';
     xml += '  </FileDescription>\n';
 
-    const invoices = this.groupByInvoice(mappedRows || []);
+    const isPlaceholder = (v) => /\([^)]+\)/.test(String(v || '').trim());
+    const isEmptyRow = (row) => {
+      const inv = (row.invoiceNumber != null ? String(row.invoiceNumber) : '').trim();
+      const date = (row.invoiceDate != null ? String(row.invoiceDate) : '').trim();
+      if (!inv || !date) return true;
+      if (isPlaceholder(inv) || isPlaceholder(date)) return true;
+      return false;
+    };
+    const rows = (mappedRows || []).filter(row => !isEmptyRow(row));
+    const invoices = this.groupByInvoice(rows);
     const issued = invoices.filter(inv => inv.isIssued);
     const received = invoices.filter(inv => !inv.isIssued);
 

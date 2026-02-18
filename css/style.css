@@ -441,6 +441,20 @@ button {
   margin-bottom: 1rem;
 }
 
+.missing-question.field-missing label {
+  color: var(--error);
+}
+
+.missing-question.field-missing input {
+  border-color: var(--error);
+  background-color: #fef2f2;
+}
+
+.missing-question.field-missing input:focus {
+  outline-color: var(--error);
+  box-shadow: 0 0 0 2px rgba(185, 28, 28, 0.2);
+}
+
 .missing-question label {
   display: block;
   font-weight: 500;
@@ -459,6 +473,23 @@ button {
   margin-bottom: 0.75rem;
   color: var(--text-muted);
   font-size: 0.9rem;
+}
+
+.convert-section .convert-status.has-issues {
+  color: var(--error);
+  font-weight: 500;
+}
+
+.convert-section .convert-status .issue-list {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--error);
+  list-style: none;
+  padding-left: 0;
+}
+
+.convert-section .convert-status .issue-list li {
+  margin-bottom: 0.25rem;
 }
 
 .download-section {

@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+  <meta charset="UTF-8">
+  <title>Generate GENERATED_1.xlsx</title>
+  <style>
+    body { font-family: system-ui; padding: 2rem; max-width: 500px; margin: 0 auto; }
+    button { padding: 12px 24px; font-size: 16px; cursor: pointer; background: #2563eb; color: white; border: none; border-radius: 8px; }
+    button:hover { background: #1d4ed8; }
+    p { color: #666; margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <h1>Generate test Excel for ConvY</h1>
+  <p>Creates GENERATED_1.xlsx with 30 rows, dates in 2027-01, and common data mistakes for testing.</p>
+  <button id="gen">Generate &amp; Download</button>
+  <p id="msg"></p>
+  <script src="js/xlsx.full.min.js"></script>
+  <script>
+(function() {
+  const companies = [
+    { name: 'UAB Prekybos centras', code: '123456789', vat: 'LT123456789' },
+    { name: 'UAB Technologijos sprendimai', code: '234567890', vat: 'LT234567890' },
+    { name: 'UAB Statyba ir ko', code: '345678901', vat: 'LT345678901' },
+    { name: 'IĮ Mažoji įmonė', code: '456789012', vat: 'ND' },
+    { name: 'UAB Logistika LT', code: '567890123', vat: 'LT567890123' },
+    { name: 'UAB Maisto gamyba', code: '678901234', vat: 'LT678901234' },
+    { name: 'UAB IT paslaugos', code: '789012345', vat: 'LT789012345' },
+    { name: 'UAB Transportas', code: '890123456', vat: 'LT890123456' },
+    { name: 'UAB Baldai', code: '901234567', vat: 'LT901234567' },
+    { name: 'UAB Elektronika', code: '112233445', vat: 'LT112233445' },
+  ];
+  const descriptions = [
+    'Prekės ir paslaugos pagal sutartį',
+    'IT konsultacijos',
+    'Statybinės medžiagos',
+    'Transporto paslaugos',
+    'Buhalterinės paslaugos',
+    'Kanceliarinės prekės',
+    'Kompiuterinė įranga',
+    'Programinė įranga',
+    'Nuoma',
+    'Konsultacijos',
+  ];
+  const docTypes = ['Išrašyta', 'Gauta', 'Išrašyta', 'Gauta', 'Išrašyta', 'Gauta', 'Išrašyta', 'Gauta', 'Išrašyta', 'Gauta'];
+  const vatRates = [21, 21, 9, 21, 5, 0, 21, 9, 21, 21];
+
+  function randomInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+  function pick(arr) { return arr[randomInt(0, arr.length - 1)]; }
+
+  document.getElementById('gen').onclick = function() {
+    const wb = XLSX.utils.book_new();
+    const headers = [
+      'PVM sąskaitos faktūros numeris',
+      'PVM sąskaitos faktūros data',
+      'PVM sąskaitos faktūros tipas',
+      'Pirkėjo / Tiekėjo pavadinimas',
+      'Pirkėjo / Tiekėjo kodas',
+      'Pirkėjo / Tiekėjo PVM mokėtojo kodas',
+      'Šalies kodas',
+      'Prekės ir paslaugos aprašymas',
+      'Kiekis',
+      'Kaina vnt.',
+      'Suma be PVM',
+      'Mokesčio tarifas (%)',
+      'PVM klasifikatoriaus kodas',
+      'PVM suma',
+      'Suma su PVM'
+    ];
+    const rows = [headers];
+
+    for (let i = 1; i <= 30; i++) {
+      const c = pick(companies);
+      const net = Math.round((Math.random() * 500 + 50) * 100) / 100;
+      const rate = pick(vatRates);
+      const vat = Math.round(net * (rate / 100) * 100) / 100;
+      const gross = Math.round((net + vat) * 100) / 100;
+      const qty = Math.round((Math.random() * 10 + 0.5) * 100) / 100;
+      const price = Math.round((net / qty) * 100) / 100;
+
+      let invNum = 'SF-2027-' + String(i).padStart(4, '0');
+      let invDate = '2027-01-' + String(randomInt(1, 31)).padStart(2, '0');
+      let docType = pick(docTypes);
+      let regCode = c.code;
+      let vatNum = c.vat;
+      let country = 'LT';
+      let desc = pick(descriptions);
+      let netVal = net;
+      let vatVal = vat;
+      let grossVal = gross;
+      let vatRate = rate;
+      let vatCode = rate >= 20 ? 'PVM1' : rate >= 8 ? 'PVM2' : rate >= 4 ? 'PVM3' : 'PVM4';
+
+      // Introduce common mistakes on specific rows
+      if (i === 3) { regCode = '12345'; }           // Wrong: company code too short
+      if (i === 5) { vatNum = '123456789'; }       // Wrong: VAT without LT prefix
+      if (i === 7) { invDate = '31.02.2027'; }     // Wrong: invalid date (Feb 31)
+      if (i === 9) { invDate = '2027-13-01'; }     // Wrong: invalid month
+      if (i === 11) { vatRate = 17; }              // Wrong: non-standard VAT rate
+      if (i === 13) { netVal = 'abc'; vatVal = ''; } // Wrong: text instead of number
+      if (i === 15) { invNum = ''; }               // Wrong: missing invoice number
+      if (i === 17) { country = 'Lietuva'; }       // Wrong: full name instead of code
+      if (i === 19) { docType = 'Pardavimas'; }    // Wrong: different wording
+      if (i === 21) { regCode = '12345678901'; }   // Wrong: 11 digits instead of 9
+      if (i === 23) { invDate = ''; }              // Wrong: empty date
+      if (i === 25) { vatNum = 'LT123'; }          // Wrong: VAT too short
+      if (i === 27) { invDate = '01.01.2027'; }   // Mixed format: DD.MM.YYYY (valid)
+      if (i === 29) { netVal = 100; vatVal = 25; } // Wrong: VAT doesn't match 21% of net
+
+      rows.push([
+        invNum,
+        invDate,
+        docType,
+        c.name,
+        regCode,
+        vatNum,
+        country,
+        desc,
+        qty,
+        price,
+        netVal,
+        vatRate,
+        vatCode,
+        vatVal,
+        grossVal
+      ]);
+    }
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = headers.map((_, i) => ({ wch: i < 4 ? 25 : 12 }));
+    XLSX.utils.book_append_sheet(wb, ws, 'PVM SF');
+
+    XLSX.writeFile(wb, 'GENERATED_1.xlsx');
+    document.getElementById('msg').textContent = 'Downloaded GENERATED_1.xlsx. Save it to: C:\\Users\\User\\Desktop\\convy files testing to upload';
+  };
+})();
+  </script>
+</body>
+</html>

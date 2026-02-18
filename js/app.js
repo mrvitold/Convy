@@ -11,14 +11,23 @@
   }
   function applyMappingFallback(mapping, sheetObjects) {
     var fields = ['invoiceNumber','invoiceDate','documentType','counterpartyName','counterpartyRegistrationNumber','counterpartyVatNumber','counterpartyCountry','netAmount','vatAmount','grossAmount','description','quantity','unitPrice','vatRate','vatClassificationCode'];
+    var CM = getConvyMapping();
+    var m = (CM && CM.deduplicateMapping) ? CM.deduplicateMapping(mapping) : mapping;
     var parseNum = function(v){ if (v == null || v === '') return NaN; return Number(String(v).replace(',', '.')); };
     var rateToTaxCode = function(rate){ if (isNaN(rate)) return ''; var r = Math.round(rate); if (r >= 20 && r <= 22) return 'PVM1'; if (r >= 8 && r <= 10) return 'PVM2'; if (r >= 4 && r <= 6) return 'PVM3'; if (r === 0) return 'PVM4'; return 'PVM1'; };
+    var normalizeDate = (CM && CM.normalizeDateToYMD) ? function(v){ return CM.normalizeDateToYMD(v); } : function(v){ if (!v) return ''; var d = new Date(v); return isNaN(d.getTime()) ? v : d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
     return (sheetObjects || []).map(function(row){
       var out = {};
-      fields.forEach(function(fid){ var col = mapping[fid]; out[fid] = col && col !== '—' && row[col] != null ? row[col] : ''; });
+      fields.forEach(function(fid){
+        var col = m[fid];
+        var val = col && col !== '—' && row[col] != null ? row[col] : '';
+        if (fid === 'invoiceDate' && val) val = normalizeDate(val) || val;
+        out[fid] = val;
+      });
       if ((!out.grossAmount || out.grossAmount === '') && out.netAmount && out.vatAmount) { var n = parseNum(out.netAmount), v = parseNum(out.vatAmount); if (!isNaN(n) && !isNaN(v)) out.grossAmount = String(n + v); }
       if ((!out.vatClassificationCode || out.vatClassificationCode === '') && out.netAmount && out.vatAmount) { var n = parseNum(out.netAmount), v = parseNum(out.vatAmount); if (!isNaN(n) && n !== 0) out.vatClassificationCode = rateToTaxCode((v / n) * 100); }
-      if ((!out.vatRate || out.vatRate === '') && out.netAmount && out.vatAmount) { var n = parseNum(out.netAmount), v = parseNum(out.vatAmount); if (!isNaN(n) && n !== 0) out.vatRate = String(Math.round((v / n) * 100 * 100) / 100); }
+      if ((!out.vatRate || out.vatRate === '') && out.netAmount && out.vatAmount) { var n = parseNum(out.netAmount), v = parseNum(out.vatAmount); if (!isNaN(n) && n !== 0) { var rate = (v / n) * 100; out.vatRate = String(Math.round(rate * 100) / 100); var stdRates = [0, 5, 9, 21]; if (!stdRates.some(function(r){ return Math.abs(rate - r) <= 1.5; })) out._vatRateSuspicious = true; } }
+      if ((!out.counterpartyCountry || String(out.counterpartyCountry).trim() === '') && out.counterpartyVatNumber && String(out.counterpartyVatNumber).trim().toUpperCase().indexOf('LT') === 0) out.counterpartyCountry = 'LT';
       return out;
     });
   }
@@ -441,6 +450,8 @@
       Object.keys(normalized).forEach(function (k) {
         if (normalized[k] === '—' && contentFallback[k] && contentFallback[k] !== '—') normalized[k] = contentFallback[k];
       });
+      var CM = getConvyMapping();
+      if (CM && CM.deduplicateMapping) normalized = CM.deduplicateMapping(normalized);
       buildMappingUI(normalized);
       renderSampleTable();
     });
@@ -493,7 +504,8 @@
       for (var i = 0; i < (headers || []).length; i++) {
         var h = lower(headers[i]);
         var hNorm = normForMatch(headers[i]);
-        if (fieldId === 'vatAmount' && ['kodas','numeris','sąskaitos','faktūros','tarifas','be pvm'].some(function(s){ return h.indexOf(s) >= 0; })) continue;
+        if (fieldId === 'vatAmount' && (hNorm.indexOf('fakturos') >= 0 || hNorm.indexOf('saskaitos') >= 0 || ['kodas','numeris','tarifas','be pvm','data','tipas'].some(function(s){ return hNorm.indexOf(normForMatch(s)) >= 0 || h.indexOf(s) >= 0; }))) continue;
+      if (fieldId === 'netAmount' && (hNorm.indexOf(normForMatch('pvm suma')) >= 0 || h.indexOf('pvm suma') >= 0) && (hNorm.indexOf(normForMatch('be pvm')) < 0 && h.indexOf('be pvm') < 0)) continue;
         if (fieldId === 'counterpartyRegistrationNumber' && (h.indexOf('pvm') >= 0 || h.indexOf('šalies') >= 0 || h.indexOf('salies') >= 0)) continue;
         if (fieldId === 'invoiceNumber' && ((h.indexOf('data') >= 0 && h.indexOf('nr') < 0 && h.indexOf('numeris') < 0) || h.indexOf('mokesčių mokėtojo') >= 0 || h.indexOf('identifikacinis') >= 0)) continue;
         if (fieldId === 'invoiceDate' && (h.indexOf(' nr') >= 0 || h.indexOf(' nr.') >= 0 || (h.indexOf('numeris') >= 0 && h.indexOf('data') < 0))) continue;
@@ -520,9 +532,11 @@
         } else if (fieldId === 'counterpartyRegistrationNumber') {
           matchCount = vals.filter(function (s) { var t = String(s).replace(/\s/g, ''); return /^[0-9]{9}$/.test(t) || /^[A-Za-z0-9]{8,11}$/.test(t); }).length;
         } else if (fieldId === 'counterpartyVatNumber') {
-          matchCount = vals.filter(function (s) { var t = String(s).replace(/\s/g, ''); return /^LT[0-9]{9}$/i.test(t) || String(s).trim().toLowerCase() === 'nd'; }).length;
+          matchCount = vals.filter(function (s) { var t = String(s).replace(/\s/g, ''); return /^LT[0-9]{8,12}$/i.test(t) || String(s).trim().toLowerCase() === 'nd'; }).length;
         } else if (fieldId === 'vatRate') {
           matchCount = vals.filter(function (s) { return /^\d+([.,]\d+)?%?$/.test(String(s).replace(',', '.').replace('%', '')); }).length;
+        } else if (fieldId === 'vatAmount') {
+          matchCount = vals.filter(function (s) { return /^-?\d+([.,]\d+)?$/.test(String(s).replace(',', '.')); }).length;
         }
         var score = matchCount / vals.length;
         if (score > bestScore) { bestScore = score; bestKey = keys[k]; }
@@ -531,13 +545,36 @@
     }
     if (sampleRows && sampleRows.length > 0 && keys.length > 0) {
       var usedCols = new Set(Object.values(mapping).filter(function (v) { return v && v !== '—'; }));
-      ['documentType', 'counterpartyRegistrationNumber', 'counterpartyVatNumber', 'vatRate'].forEach(function (fieldId) {
+      ['documentType', 'counterpartyRegistrationNumber', 'counterpartyVatNumber', 'vatRate', 'vatAmount'].forEach(function (fieldId) {
         if (mapping[fieldId] !== '—') return;
         var bestKey = contentMatch(fieldId, usedCols);
         if (bestKey) { mapping[fieldId] = bestKey; usedCols.add(bestKey); }
       });
     }
-    return mapping;
+    var CM = getConvyMapping();
+    return (CM && CM.deduplicateMapping) ? CM.deduplicateMapping(mapping) : mapping;
+  }
+
+  function deduplicateMappingInline(mapping, columnKeys) {
+    var fieldOrder = ['invoiceNumber','invoiceDate','documentType','counterpartyName','counterpartyRegistrationNumber','counterpartyVatNumber','counterpartyCountry','description','quantity','unitPrice','netAmount','vatRate','vatClassificationCode','vatAmount','grossAmount'];
+    var keyToIndex = {};
+    if (columnKeys && columnKeys.length) {
+      for (var i = 0; i < columnKeys.length; i++) {
+        keyToIndex[columnKeys[i]] = i;
+        if (typeof XLSX !== 'undefined') keyToIndex[XLSX.utils.encode_col(i)] = i;
+      }
+    }
+    var seen = new Set();
+    var out = {};
+    for (var k in mapping) out[k] = mapping[k];
+    fieldOrder.forEach(function(fid) {
+      var col = out[fid];
+      if (!col || col === '—') return;
+      var canon = (keyToIndex[col] !== undefined) ? keyToIndex[col] : col;
+      if (seen.has(canon)) out[fid] = '—';
+      else seen.add(canon);
+    });
+    return out;
   }
 
   function buildMappingUI(overrideMapping) {
@@ -559,7 +596,9 @@
     const columnKeys = state.columnKeys || headers.slice();
     var getKey = function (i) { return (columnKeys[i] != null ? columnKeys[i] : (headers[i] || '—')); };
     if (overrideMapping) {
-      state.mapping = { ...state.mapping, ...overrideMapping };
+      var merged = { ...state.mapping, ...overrideMapping };
+      merged = deduplicateMappingInline(merged, columnKeys);
+      state.mapping = merged;
     } else if (!state.mapping || Object.keys(state.mapping).length === 0) {
       var suggested = {};
       if (ConvyMapping && ConvyMapping.suggestMappingFromHeaders) {
@@ -572,8 +611,10 @@
         state.mapping[f.id] = (suggested[f.id] && suggested[f.id] !== '—') ? suggested[f.id] : '—';
       });
       if (hideDocumentType) state.mapping.documentType = '—';
+      state.mapping = deduplicateMappingInline(state.mapping, columnKeys);
     }
     if (hideDocumentType) state.mapping.documentType = '—';
+    state.mapping = deduplicateMappingInline(state.mapping, columnKeys);
 
     const tbodyRequired = tbodyReq;
     const tbodyOptional = tbodyOpt;
@@ -630,6 +671,10 @@
     const rows = (state.sheetObjects || []).slice(0, 5);
     const headers = state.headers || [];
     const columnKeys = state.columnKeys || headers.slice();
+    const mapping = state.mapping || {};
+    const dateColKey = mapping.invoiceDate && mapping.invoiceDate !== '—' ? mapping.invoiceDate : null;
+    var CM = getConvyMapping();
+    var normalizeDate = (CM && CM.normalizeDateToYMD) ? function(v) { return CM.normalizeDateToYMD(v); } : null;
     let html = '<table><thead><tr>';
     headers.forEach((h, i) => {
       const letter = typeof XLSX !== 'undefined' ? XLSX.utils.encode_col(i) : String(i + 1);
@@ -641,7 +686,11 @@
     rows.forEach(row => {
       html += '<tr>';
       columnKeys.forEach(key => {
-        const val = row[key];
+        let val = row[key];
+        if (dateColKey === key && val != null && normalizeDate) {
+          var ymd = normalizeDate(val);
+          if (ymd) val = ymd;
+        }
         html += '<td>' + (val != null ? ConvyISAF.escape(String(val)) : '') + '</td>';
       });
       html += '</tr>';
@@ -670,6 +719,17 @@
     });
   }
 
+  function filterEmptyInvoiceRows(rows) {
+    var isPlaceholder = function(v) { return /\([^)]+\)/.test(String(v || '').trim()); };
+    return (rows || []).filter(function(row) {
+      var inv = (row.invoiceNumber != null ? String(row.invoiceNumber) : '').trim();
+      var date = (row.invoiceDate != null ? String(row.invoiceDate) : '').trim();
+      if (!inv || !date) return false;
+      if (isPlaceholder(inv) || isPlaceholder(date)) return false;
+      return true;
+    });
+  }
+
   function applyDataTypeToRows(rows, dataType) {
     var dt = (dataType || 'F').toUpperCase().slice(0, 1);
     if (dt !== 'S' && dt !== 'P') return rows;
@@ -682,6 +742,7 @@
     var CM = getConvyMapping();
     var mappedRows = CM ? CM.applyMapping(state.mapping, state.sheetObjects) : applyMappingFallback(state.mapping, state.sheetObjects);
     mappedRows = applyDataTypeToRows(mappedRows, header.dataType);
+    mappedRows = filterEmptyInvoiceRows(mappedRows);
     var CMD = (typeof window !== 'undefined' && window.ConvyMissingData) || (typeof globalThis !== 'undefined' && globalThis.ConvyMissingData) || null;
     const headerIssues = CMD ? CMD.checkHeader(header) : [];
     const rowIssues = CMD ? CMD.checkMappedRows(mappedRows, 5) : [];
@@ -692,7 +753,7 @@
       missingQuestionsEl.innerHTML = '';
       headerIssues.forEach(({ fieldId, message, hint }) => {
         const div = document.createElement('div');
-        div.className = 'missing-question';
+        div.className = 'missing-question field-missing';
         const label = document.createElement('label');
         label.textContent = message;
         div.appendChild(label);
@@ -727,8 +788,11 @@
     }
 
     if (rowIssues.length > 0) {
-      convertStatusEl.textContent = 'Dėmesio: kai kuriose eilutėse trūksta duomenų (pvz. SF numeris, data). Galite konvertuoti bet kokiu atveju – neužpildyti laukai bus tušti.';
+      convertStatusEl.className = 'convert-status has-issues';
+      convertStatusEl.innerHTML = 'Dėmesio: kai kuriose eilutėse trūksta duomenų arba yra klaidų. Galite konvertuoti bet kokiu atveju – neužpildyti laukai bus tušti.<ul class="issue-list">' +
+        rowIssues.map(function(iss) { return '<li>' + iss.message + '</li>'; }).join('') + '</ul>';
     } else {
+      convertStatusEl.className = 'convert-status';
       convertStatusEl.textContent = 'Visi reikalingi antraštės laukai užpildyti. Spauskite „Konvertuoti į i.SAF XML“.';
     }
     missingDataSection.classList.add('hidden');
@@ -761,6 +825,7 @@
     var CM = getConvyMapping();
     var mappedRows = CM ? CM.applyMapping(state.mapping, state.sheetObjects) : applyMappingFallback(state.mapping, state.sheetObjects);
     mappedRows = applyDataTypeToRows(mappedRows, header.dataType);
+    mappedRows = filterEmptyInvoiceRows(mappedRows);
     var ISAF = getConvyISAF();
     if (!ISAF) throw new Error('ConvyISAF not loaded');
     state.generatedXml = ISAF.build(header, mappedRows);
@@ -789,7 +854,19 @@
     mappingTableWrap.addEventListener('change', function (e) {
       var sel = e.target;
       if (sel && sel.tagName === 'SELECT' && sel.getAttribute && sel.getAttribute('data-field-id')) {
-        state.mapping[sel.getAttribute('data-field-id')] = sel.value;
+        var fieldId = sel.getAttribute('data-field-id');
+        var chosenCol = sel.value;
+        state.mapping[fieldId] = chosenCol;
+        if (chosenCol && chosenCol !== '—') {
+          Object.keys(state.mapping).forEach(function (fid) {
+            if (fid !== fieldId && state.mapping[fid] === chosenCol) {
+              state.mapping[fid] = '—';
+              var otherSel = mappingTableWrap.querySelector('select[data-field-id="' + fid + '"]');
+              if (otherSel) otherSel.value = '—';
+            }
+          });
+        }
+        renderSampleTable();
       }
     });
   }

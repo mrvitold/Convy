@@ -27,6 +27,7 @@
       if ((!out.grossAmount || out.grossAmount === '') && out.netAmount && out.vatAmount) { var n = parseNum(out.netAmount), v = parseNum(out.vatAmount); if (!isNaN(n) && !isNaN(v)) out.grossAmount = String(n + v); }
       if ((!out.vatClassificationCode || out.vatClassificationCode === '') && out.netAmount && out.vatAmount) { var n = parseNum(out.netAmount), v = parseNum(out.vatAmount); if (!isNaN(n) && n !== 0) out.vatClassificationCode = rateToTaxCode((v / n) * 100); }
       if ((!out.vatRate || out.vatRate === '') && out.netAmount && out.vatAmount) { var n = parseNum(out.netAmount), v = parseNum(out.vatAmount); if (!isNaN(n) && n !== 0) { var rate = (v / n) * 100; out.vatRate = String(Math.round(rate * 100) / 100); var stdRates = [0, 5, 9, 21]; if (!stdRates.some(function(r){ return Math.abs(rate - r) <= 1.5; })) out._vatRateSuspicious = true; } }
+      if (out.vatRate && out.vatRate !== '') { var r = parseNum(out.vatRate); if (!isNaN(r)) { var stdRates = [0, 5, 9, 21]; if (!stdRates.some(function(sr){ return Math.abs(r - sr) <= 1.5; })) out._vatRateSuspicious = true; } }
       if ((!out.counterpartyCountry || String(out.counterpartyCountry).trim() === '') && out.counterpartyVatNumber && String(out.counterpartyVatNumber).trim().toUpperCase().indexOf('LT') === 0) out.counterpartyCountry = 'LT';
       return out;
     });
@@ -176,8 +177,12 @@
     if (m) {
       var a = parseInt(m[1], 10), b = parseInt(m[2], 10), y = parseInt(m[3], 10);
       var fullY = y >= 0 && y <= 50 ? 2000 + y : 1900 + y;
-      var day, month;
-      if (a > 12) { day = a; month = b; } else if (b > 12) { day = b; month = a; } else { day = a; month = b; }
+      var month, day;
+      if (a > 12) { month = b; day = a; } else if (b > 12) { month = a; day = b; } else {
+        var sep = s.indexOf('/') >= 0 ? '/' : '.';
+        month = sep === '/' ? a : b;
+        day = sep === '/' ? b : a;
+      }
       return new Date(fullY, month - 1, day);
     }
     var d = new Date(s);
@@ -188,23 +193,48 @@
     var rows = state.sheetObjects || [];
     var columnKeys = state.columnKeys || [];
     var headers = state.headers || [];
-    var dateHints = ['data', 'date', 'saskaitos data', 'sąskaitos data', 'issuance', 'data sf', 'pvm sąskaitos faktūros data'];
     var dateColKey = null;
-    for (var i = 0; i < headers.length; i++) {
-      var h = (headers[i] != null ? String(headers[i]) : '').toLowerCase();
-      if (dateHints.some(function (w) { return h.indexOf(w) >= 0; })) {
-        dateColKey = columnKeys[i] != null ? columnKeys[i] : (headers[i] || columnKeys[i]);
-        break;
+    if (state.mapping && state.mapping.invoiceDate && state.mapping.invoiceDate !== '—') {
+      var mapped = state.mapping.invoiceDate;
+      if (columnKeys.indexOf(mapped) >= 0 || (headers || []).some(function (h) { return (h || '').trim() === mapped; })) {
+        dateColKey = mapped;
+      }
+    }
+    if (!dateColKey) {
+      var dateHints = ['saskaitos data', 'sąskaitos data', 'data sf', 'pvm sąskaitos faktūros data', 'datra', 'isdavimo data', 'issuance', 'date', 'data'];
+      var periodExclude = ['laikotarpio', 'period start', 'period end', 'selection start', 'selection end', 'pradžios data', 'pabaigos data', 'nuo ', 'iki '];
+      for (var i = 0; i < headers.length; i++) {
+        var h = (headers[i] != null ? String(headers[i]) : '').toLowerCase();
+        if (periodExclude.some(function (w) { return h.indexOf(w) >= 0; })) continue;
+        if (dateHints.some(function (w) { return h.indexOf(w) >= 0; })) {
+          dateColKey = columnKeys[i] != null ? columnKeys[i] : (headers[i] || columnKeys[i]);
+          break;
+        }
       }
     }
     if (!dateColKey) return null;
     var minD = null, maxD = null;
-    for (var r = 0; r < rows.length; r++) {
+    /* Skip first and last row – they often contain period boundaries (Laikotarpio pradžia/pabaiga), not invoice dates */
+    var startR = rows.length > 2 ? 1 : 0;
+    var endR = rows.length > 2 ? rows.length - 2 : rows.length - 1;
+    for (var r = startR; r <= endR; r++) {
       var cell = rows[r][dateColKey];
       var d = parseCellAsDate(cell);
       if (d) {
         if (!minD || d.getTime() < minD.getTime()) minD = d;
         if (!maxD || d.getTime() > maxD.getTime()) maxD = d;
+      }
+    }
+    /* If skipping yielded no dates, fall back to all rows (e.g. small files) */
+    if ((!minD || !maxD) && rows.length > 0) {
+      minD = null; maxD = null;
+      for (var r = 0; r < rows.length; r++) {
+        var cell = rows[r][dateColKey];
+        var d = parseCellAsDate(cell);
+        if (d) {
+          if (!minD || d.getTime() < minD.getTime()) minD = d;
+          if (!maxD || d.getTime() > maxD.getTime()) maxD = d;
+        }
       }
     }
     if (!minD || !maxD) return null;
@@ -355,6 +385,14 @@
               var headerRow = result.headerRow != null ? result.headerRow : (state.headerRowIndex + 1);
               applySheetAndHeader(sheetName, headerRow);
               prefillPeriodFromFile();
+              /* Only use Gemini dates if sheet-based prefill failed (avoids overwriting correct dates with wrong period range) */
+              var range = getMinMaxDatesFromSheet();
+              if ((!range || !range.min || !range.max) && result.selectionStartDate && result.selectionEndDate) {
+                var startEl = document.getElementById('period-start');
+                var endEl = document.getElementById('period-end');
+                if (startEl) startEl.value = firstDayOfMonthYMD(result.selectionStartDate);
+                if (endEl) endEl.value = lastDayOfMonthYMD(result.selectionEndDate);
+              }
               if (sheetSelectEl && sheetNames.length > 1) sheetSelectEl.value = sheetName;
               if (step1AiStatusEl) step1AiStatusEl.textContent = 'Failas išanalizuotas. Patikrinkite žemiau arba spauskite Toliau.';
             });
@@ -396,11 +434,11 @@
       try {
         saveCompanyToStorage();
         loadStoredCompany();
-        prefillPeriodFromFile();
         if (state.headers && state.headers.length > 0) {
           buildMappingUI();
           renderSampleTable();
         }
+        prefillPeriodFromFile();
       } catch (e) {
         console.error('Convy step 1 next:', e);
       }
@@ -482,18 +520,18 @@
   /** Fallback header-based suggestion when ConvyMapping is unavailable. */
   function suggestMappingFromHeadersFallback(headers, getKey, sampleRows) {
     var hints = {
-      invoiceNumber: ['nr', 'numeris', 'number', 'sf', 'saskaitos', 'sąskaitos', 'invoice', 'no', 'no.', 'serija', 'invoice_id', 'id', 'saskaitos nr', 'sf nr', 'pvm saskaitos fakturos numeris', 'pvm sąskaitos faktūros numeris'],
-      invoiceDate: ['data', 'date', 'dat', 'datra', 'saskaitos data', 'sąskaitos data', 'issuance', 'isdavimo data', 'data sf', 'pvm saskaitos fakturos data', 'pvm sąskaitos faktūros data'],
-      documentType: ['tipas', 'type', 'israsyt', 'gaut', 'issued', 'received', 'invoice_type', 'dokumento tipas', 'pardavimai', 'pirkimai', 'sales', 'purchases', 'kryptis', 'direction', 'rūšis', 'kind', 'doc_type'],
-      counterpartyName: ['pirkėjas', 'pirkėj', 'tiekėjas', 'tiekėj', 'buyer', 'supplier', 'customer', 'client', 'pavadinimas', 'name', 'company_name', 'kontrahentas', 'klientas', 'imoner', 'imone', 'imon', 'įmonė'],
-      counterpartyRegistrationNumber: ['kodas', 'code', 'imones kodas', 'įmonės kodas', 'registration', 'tax_code', 'pirkėjo kodas', 'tiekėjo kodas'],
-      counterpartyVatNumber: ['pvm kodas', 'pvm mokėtojo', 'vat number', 'vat kodas'],
-      counterpartyCountry: ['šalies kodas', 'salies kodas', 'country', 'šalis', 'salis'],
-      netAmount: ['suma be pvm', 'net', 'be pvm', 'without vat', 'amount_without_vat', 'suma be pvm eur', 'amount', 'suma', 'avra', 'apmokest', 'vertė', 'verte', 'taxable', 'value'],
-      vatRate: ['tarifas', 'rate', 'pvm %', 'vat rate', 'mokescio tarifas', 'mokesčio tarifas', 'tax rate'],
-      vatClassificationCode: ['pvm klasifikatoriaus', 'klasifikatoriaus kodas', 'tax code', 'pvm1', 'pvm2', 'pvm3', 'pvm4'],
-      vatAmount: ['pvm suma', 'vat amount', 'vat_amount', 'amount_vat', 'pvm eur', 'vat', 'pvm', 'nds'],
-      grossAmount: ['suma su pvm', 'gross', 'su pvm', 'total', 'with vat', 'amount_with_vat', 'bendra suma', 'avra'],
+      invoiceNumber: ['nr', 'numeris', 'number', 'sf', 'saskaitos', 'sąskaitos', 'invoice', 'no', 'no.', 'serija', 'invoice_id', 'id', 'saskaitos nr', 'sf nr', 'pvm saskaitos fakturos numeris', 'pvm sąskaitos faktūros numeris', 'pvm sf numeris', 'dokumento numeris', 'fakturos numeris', 'pvm sf nr', 'inv no', 'inv#', 'invoice no', 'invoice ref', 'doc number', 'document no', 'reference', 'inv_num', 'ref', 'doc_num', 'invoice_number'],
+      invoiceDate: ['data', 'date', 'dat', 'datra', 'saskaitos data', 'sąskaitos data', 'issuance', 'isdavimo data', 'data sf', 'pvm saskaitos fakturos data', 'pvm sąskaitos faktūros data', 'fakturos data', 'dokumento data', 'pvm sf data', 'invoice date', 'issue date', 'doc date', 'created', 'created date', 'bill date', 'invoice_date', 'inv_date', 'document_date'],
+      documentType: ['tipas', 'type', 'israsyt', 'gaut', 'issued', 'received', 'invoice_type', 'dokumento tipas', 'pardavimai', 'pirkimai', 'sales', 'purchases', 'kryptis', 'direction', 'rūšis', 'kind', 'doc_type', 'doc type', 'pvm saskaitos fakturos tipas', 'pvm sf tipas', 'flow', 'transaction_type', 'in out', 'sale purchase', 'gavimas', 'isdavimas'],
+      counterpartyName: ['pirkėjas', 'pirkėj', 'tiekėjas', 'tiekėj', 'buyer', 'supplier', 'customer', 'client', 'pavadinimas', 'name', 'company_name', 'kontrahentas', 'klientas', 'imoner', 'imone', 'imon', 'įmonė', 'pardavejas', 'pirkėjo pavadinimas', 'tiekėjo pavadinimas', 'vendor', 'customer name', 'company name', 'party name', 'vendor_name', 'customer_name', 'company', 'organization', 'counterparty', 'pirkėjo/tiekėjo'],
+      counterpartyRegistrationNumber: ['kodas', 'code', 'imones kodas', 'įmonės kodas', 'registration', 'tax_code', 'pirkėjo kodas', 'tiekėjo kodas', 'registracijos numeris', 'juridinio asmens kodas', 'jak', 'company code', 'registration number', 'tax id', 'org number', 'company number', 'reg no', 'registration_no', 'company_number', 'organization_number', 'org_no', 'company_code'],
+      counterpartyVatNumber: ['pvm kodas', 'pvm mokėtojo', 'vat number', 'vat kodas', 'pirkėjo pvm', 'tiekėjo pvm', 'pvm mokėtojo kodas', 'vat no', 'vat id', 'vat code', 'vat reg', 'vat_registration', 'tax number', 'vat_number'],
+      counterpartyCountry: ['šalies kodas', 'salies kodas', 'country', 'šalis', 'salis', 'valstybė', 'valstybe', 'country code', 'country_code', 'iso', 'šalies', 'country_iso'],
+      netAmount: ['suma be pvm', 'net', 'be pvm', 'without vat', 'amount_without_vat', 'suma be pvm eur', 'amount', 'suma', 'avra', 'apmokest', 'vertė', 'verte', 'taxable', 'value', 'neto', 'apmokestinama suma', 'net amount', 'amount without vat', 'taxable amount', 'base amount', 'subtotal', 'net_amount', 'amount_without', 'amount_net', 'suma_be_pvm'],
+      vatRate: ['tarifas', 'rate', 'pvm %', 'vat rate', 'mokescio tarifas', 'mokesčio tarifas', 'tax rate', 'pvm tarifas', 'tarifas %', 'vat %', 'vat_rate', 'tax_rate', 'rate %', 'pvm_procentas', 'mokescio tarifas', 'mokesčio tarifas'],
+      vatClassificationCode: ['pvm klasifikatoriaus', 'klasifikatoriaus kodas', 'tax code', 'pvm1', 'pvm2', 'pvm3', 'pvm4', 'pvm kodas klasifikatorius', 'tax_classification', 'vat_classification_code'],
+      vatAmount: ['pvm suma', 'vat amount', 'vat_amount', 'vat_amount_eur', 'amount_vat', 'pvm eur', 'nds', 'pvm suma eur', 'vat sum', 'vat_amount_eur', 'amount_vat_eur', 'vat_total', 'tax amount', 'pvm mokestis', 'pvm_suma'],
+      grossAmount: ['suma su pvm', 'gross', 'su pvm', 'total', 'with vat', 'amount_with_vat', 'bendra suma', 'avra', 'suma su pvm eur', 'is viso', 'iš viso', 'gross amount', 'total amount', 'amount with vat', 'gross_amount', 'total_amount', 'amount_with_vat', 'bendra_suma'],
     };
     var mapping = {};
     var lower = function (s) { return (s != null ? String(s).toLowerCase() : ''); };
@@ -504,8 +542,9 @@
       for (var i = 0; i < (headers || []).length; i++) {
         var h = lower(headers[i]);
         var hNorm = normForMatch(headers[i]);
-        if (fieldId === 'vatAmount' && (hNorm.indexOf('fakturos') >= 0 || hNorm.indexOf('saskaitos') >= 0 || ['kodas','numeris','tarifas','be pvm','data','tipas'].some(function(s){ return hNorm.indexOf(normForMatch(s)) >= 0 || h.indexOf(s) >= 0; }))) continue;
-      if (fieldId === 'netAmount' && (hNorm.indexOf(normForMatch('pvm suma')) >= 0 || h.indexOf('pvm suma') >= 0) && (hNorm.indexOf(normForMatch('be pvm')) < 0 && h.indexOf('be pvm') < 0)) continue;
+        if (fieldId === 'vatAmount' && (hNorm.indexOf('fakturos') >= 0 || hNorm.indexOf('saskaitos') >= 0 || h.indexOf('without') >= 0 || h.indexOf('without_vat') >= 0 || h.indexOf('be pvm') >= 0 || ['kodas','numeris','tarifas','data','tipas'].some(function(s){ return hNorm.indexOf(normForMatch(s)) >= 0 || h.indexOf(s) >= 0; }))) continue;
+        if (fieldId === 'vatRate' && (h.indexOf('amount') >= 0 || h.indexOf('eur') >= 0 || h.indexOf('suma') >= 0) && h.indexOf('rate') < 0 && h.indexOf('tarifas') < 0) continue;
+      if (fieldId === 'netAmount' && ((hNorm.indexOf(normForMatch('pvm suma')) >= 0 || h.indexOf('pvm suma') >= 0) && (hNorm.indexOf(normForMatch('be pvm')) < 0 && h.indexOf('be pvm') < 0) || (h.indexOf('vat_amount') >= 0 || h.indexOf('amount_vat') >= 0 || (h.indexOf('vat amount') >= 0 && h.indexOf('without') < 0)))) continue;
         if (fieldId === 'counterpartyRegistrationNumber' && (h.indexOf('pvm') >= 0 || h.indexOf('šalies') >= 0 || h.indexOf('salies') >= 0)) continue;
         if (fieldId === 'invoiceNumber' && ((h.indexOf('data') >= 0 && h.indexOf('nr') < 0 && h.indexOf('numeris') < 0) || h.indexOf('mokesčių mokėtojo') >= 0 || h.indexOf('identifikacinis') >= 0)) continue;
         if (fieldId === 'invoiceDate' && (h.indexOf(' nr') >= 0 || h.indexOf(' nr.') >= 0 || (h.indexOf('numeris') >= 0 && h.indexOf('data') < 0))) continue;
@@ -518,13 +557,21 @@
     });
     function contentMatch(fieldId, usedCols) {
       var bestKey = null, bestScore = 0.25;
+      var stdVatRates = [0, 5, 9, 21];
+      var isVatRate = function (v) {
+        var n = parseFloat(String(v).replace(',', '.').replace('%', ''));
+        if (isNaN(n)) return false;
+        return stdVatRates.some(function (r) { return Math.abs(n - r) <= 0.5; });
+      };
       for (var k = 0; k < keys.length; k++) {
         if (usedCols.has(keys[k])) continue;
+        var header = (headers[k] != null ? String(headers[k]) : '').toLowerCase();
+        if (fieldId === 'vatRate' && (header.indexOf('amount') >= 0 || header.indexOf('eur') >= 0 || header.indexOf('suma') >= 0) && header.indexOf('rate') < 0 && header.indexOf('tarifas') < 0) continue;
         var vals = sampleRows.map(function (r) { return (r[keys[k]] != null ? String(r[keys[k]]).trim() : ''); }).filter(function (v) { return v !== ''; });
         if (vals.length === 0) continue;
         var matchCount = 0;
         if (fieldId === 'documentType') {
-          var docTypeTokens = ['israsyt', 'gauta', 'issued', 'received', 's', 'p', 'i', 'f'];
+          var docTypeTokens = ['israsyt', 'gauta', 'issued', 'received', 's', 'p', 'i', 'f', 'pardavim', 'pirkim', 'sale', 'purchase', 'outgoing', 'incoming', 'out', 'in', 'gaut', 'isdav', 'credit', 'debit', 'sf', 'tipas', 'type'];
           matchCount = vals.filter(function (s) {
             var n = (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
             return docTypeTokens.some(function (t) { return n.indexOf(t) >= 0 || n === t; }) || /^[spif]$/.test(n);
@@ -534,7 +581,7 @@
         } else if (fieldId === 'counterpartyVatNumber') {
           matchCount = vals.filter(function (s) { var t = String(s).replace(/\s/g, ''); return /^LT[0-9]{8,12}$/i.test(t) || String(s).trim().toLowerCase() === 'nd'; }).length;
         } else if (fieldId === 'vatRate') {
-          matchCount = vals.filter(function (s) { return /^\d+([.,]\d+)?%?$/.test(String(s).replace(',', '.').replace('%', '')); }).length;
+          matchCount = vals.filter(function (s) { return isVatRate(s); }).length;
         } else if (fieldId === 'vatAmount') {
           matchCount = vals.filter(function (s) { return /^-?\d+([.,]\d+)?$/.test(String(s).replace(',', '.')); }).length;
         }
@@ -745,7 +792,7 @@
     mappedRows = filterEmptyInvoiceRows(mappedRows);
     var CMD = (typeof window !== 'undefined' && window.ConvyMissingData) || (typeof globalThis !== 'undefined' && globalThis.ConvyMissingData) || null;
     const headerIssues = CMD ? CMD.checkHeader(header) : [];
-    const rowIssues = CMD ? CMD.checkMappedRows(mappedRows, 5) : [];
+    const rowIssues = CMD ? CMD.checkMappedRows(mappedRows, 15) : [];
 
     if (headerIssues.length > 0) {
       missingDataSection.classList.remove('hidden');
@@ -821,16 +868,21 @@
   });
 
   doConvertBtn.addEventListener('click', () => {
-    const header = getHeaderFromForm();
-    var CM = getConvyMapping();
-    var mappedRows = CM ? CM.applyMapping(state.mapping, state.sheetObjects) : applyMappingFallback(state.mapping, state.sheetObjects);
-    mappedRows = applyDataTypeToRows(mappedRows, header.dataType);
-    mappedRows = filterEmptyInvoiceRows(mappedRows);
-    var ISAF = getConvyISAF();
-    if (!ISAF) throw new Error('ConvyISAF not loaded');
-    state.generatedXml = ISAF.build(header, mappedRows);
-    convertStatusEl.textContent = 'XML sukurtas sėkmingai.';
-    downloadSection.classList.remove('hidden');
+    try {
+      const header = getHeaderFromForm();
+      var CM = getConvyMapping();
+      var mappedRows = CM ? CM.applyMapping(state.mapping, state.sheetObjects) : applyMappingFallback(state.mapping, state.sheetObjects);
+      mappedRows = applyDataTypeToRows(mappedRows, header.dataType);
+      mappedRows = filterEmptyInvoiceRows(mappedRows);
+      var ISAF = getConvyISAF();
+      if (!ISAF) throw new Error('ConvyISAF not loaded');
+      state.generatedXml = ISAF.build(header, mappedRows);
+      convertStatusEl.textContent = 'XML sukurtas sėkmingai.';
+      downloadSection.classList.remove('hidden');
+    } catch (e) {
+      if (convertStatusEl) convertStatusEl.textContent = 'Klaida: ' + (e && e.message ? e.message : e);
+      if (convertStatusEl) convertStatusEl.className = 'convert-status has-issues';
+    }
   });
 
   downloadXmlBtn.addEventListener('click', () => {

@@ -127,6 +127,22 @@ const ConvyMissingData = {
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   },
 
+  /** Valid Lithuanian VAT tariffs (%). */
+  VAT_TARIFFS: [0, 5, 9, 21],
+
+  _vatRateDiffFromNearest(rate) {
+    const n = Number(String(rate).replace(',', '.'));
+    if (isNaN(n)) return { nearest: null, diff: null };
+    const tariffs = this.VAT_TARIFFS;
+    let nearest = tariffs[0];
+    let minDist = Math.abs(n - nearest);
+    for (let i = 1; i < tariffs.length; i++) {
+      const d = Math.abs(n - tariffs[i]);
+      if (d < minDist) { minDist = d; nearest = tariffs[i]; }
+    }
+    return { nearest, diff: minDist };
+  },
+
   /**
    * Check mapped rows for missing required invoice-level fields (e.g. invoice number, date).
    * Also checks date range and VAT rate validity.
@@ -148,7 +164,13 @@ const ConvyMissingData = {
           issues.push({ invoiceIndex: i, fieldId: 'invoiceDate', message: `Eilutė ${i + 1}: data už leidžiamo laiko (30 m. atgal – 5 m. į priekį).` });
         }
       }
-      if (row._vatRateSuspicious) {
+      const vatRateVal = row.vatRate != null ? String(row.vatRate).trim() : '';
+      if (vatRateVal) {
+        const { nearest, diff } = this._vatRateDiffFromNearest(vatRateVal);
+        if (nearest != null && diff !== null && diff > 1.5) {
+          issues.push({ invoiceIndex: i, fieldId: 'vatRate', message: `Eilutė ${i + 1}: PVM tarifas (${vatRateVal}%) nutolęs nuo leidžiamų (0, 5, 9, 21%) daugiau nei 1.5%. Artimiausias: ${nearest}%. Patikrinkite.` });
+        }
+      } else if (row._vatRateSuspicious) {
         issues.push({ invoiceIndex: i, fieldId: 'vatRate', message: `Eilutė ${i + 1}: mokesčio tarifas neatitinka standartinių (0, 5, 9, 21%). Patikrinkite.` });
       }
       const regNum = (row.counterpartyRegistrationNumber != null ? String(row.counterpartyRegistrationNumber).replace(/\s/g, '') : '');

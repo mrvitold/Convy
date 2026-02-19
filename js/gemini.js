@@ -27,14 +27,21 @@ const ConvyGemini = {
   },
 
   analyzeUpload(sheetNames, previewText, callback) {
-    var prompt = 'An Excel file has been uploaded for Lithuanian VAT invoice (i.SAF) conversion.\nSheet names: ' + (sheetNames || []).join(', ') + '\n\nPreview of the first rows (each line is one row, values separated by tabs). The first rows may be empty; the header row has column titles (e.g. Date, Invoice number, Buyer, Amount, PVM).\n---\n' + (previewText || '').slice(0, 2500) + '\n---\n\nDetermine which row number (1-based) is the header row. If the first rows are empty, the header might be row 3, 4, etc. Which sheet index (0-based) contains the invoice data? Reply with ONLY a valid JSON object. Example: {"headerRow": 3, "sheetIndex": 0}';
+    var prompt = 'An Excel file has been uploaded for Lithuanian VAT invoice (i.SAF) conversion.\nSheet names: ' + (sheetNames || []).join(', ') + '\n\nPreview of the first rows (each line is one row, values separated by tabs). The first rows may be empty; the header row has column titles (e.g. Date, Invoice number, Buyer, Amount, PVM).\n---\n' + (previewText || '').slice(0, 2500) + '\n---\n\nDetermine:\n1. Which row number (1-based) is the header row. If the first rows are empty, the header might be row 3, 4, etc.\n2. Which sheet index (0-based) contains the invoice data.\n3. The date range for the reporting period: identify the INVOICE DATE column (not period columns like "Laikotarpio pradžios data" or "Laikotarpio pabaigos data"). From the invoice date values in the data rows, determine the minimum and maximum dates. Set selectionStartDate to the first day of the month of the earliest date, selectionEndDate to the last day of the month of the latest date. Format: YYYY-MM-DD.\n\nReply with ONLY a valid JSON object. Example: {"headerRow": 3, "sheetIndex": 0, "selectionStartDate": "2027-11-01", "selectionEndDate": "2027-11-30"}';
     this.chat(prompt, function (err, response) {
       if (err) return callback(err);
       var json = ConvyGemini.extractJSON(response);
       if (json && typeof json === 'object') {
         var headerRow = Math.max(1, Math.min(20, parseInt(json.headerRow, 10) || 1));
         var sheetIndex = Math.max(0, Math.min((sheetNames || []).length - 1, parseInt(json.sheetIndex, 10) || 0));
-        return callback(null, { headerRow: headerRow, sheetIndex: sheetIndex });
+        var result = { headerRow: headerRow, sheetIndex: sheetIndex };
+        var start = (json.selectionStartDate || '').toString().trim();
+        var end = (json.selectionEndDate || '').toString().trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(start) && /^\d{4}-\d{2}-\d{2}$/.test(end)) {
+          result.selectionStartDate = start;
+          result.selectionEndDate = end;
+        }
+        return callback(null, result);
       }
       callback(new Error('Could not parse analysis'));
     });

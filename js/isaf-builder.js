@@ -1,6 +1,7 @@
 /**
  * Build i.SAF 1.2 XML from header config + mapped invoice rows.
- * Structure: FileDescription (Part I), optional MasterData (Part II), SourceDocuments (Part III).
+ * Conforms to official i.SAF 1.2 XSD: http://www.vmi.lt/cms/imas/isaf
+ * Structure: iSAFFile > Header > FileDescription, MasterFiles (Customers/Suppliers), SourceDocuments (SalesInvoices/PurchaseInvoices).
  */
 const ConvyISAF = {
   /** Escape for XML text content */
@@ -26,10 +27,10 @@ const ConvyISAF = {
     return `${y}-${m}-${day}`;
   },
 
-  /** Format date-time for FileDateCreated */
+  /** Format date-time for FileDateCreated (xs:dateTime) */
   formatDateTime() {
     const d = new Date();
-    return d.toISOString().slice(0, 19).replace('T', ' ');
+    return d.toISOString().slice(0, 19);
   },
 
   /** Normalize number for XML (decimal with dot) */
@@ -39,9 +40,26 @@ const ConvyISAF = {
     return isNaN(n) ? '' : String(n);
   },
 
+  /** Valid Lithuanian VAT tariffs (%). */
+  VAT_TARIFFS: [0, 5, 9, 21],
+
+  /** Format VAT rate: round to nearest valid Lithuanian tariff (0, 5, 9, 21). */
+  formatVatRate(val) {
+    if (val == null || val === '') return '';
+    const n = Number(String(val).replace(',', '.'));
+    if (isNaN(n)) return '';
+    const tariffs = ConvyISAF.VAT_TARIFFS || [0, 5, 9, 21];
+    let nearest = tariffs[0];
+    let minDist = Math.abs(n - nearest);
+    for (let i = 1; i < tariffs.length; i++) {
+      const d = Math.abs(n - tariffs[i]);
+      if (d < minDist) { minDist = d; nearest = tariffs[i]; }
+    }
+    return String(nearest);
+  },
+
   /**
    * Group mapped rows by invoice (invoiceNumber + documentType if present).
-   * Each group becomes one Invoice with header + lines.
    */
   groupByInvoice(mappedRows) {
     const groups = new Map();
@@ -57,14 +75,16 @@ const ConvyISAF = {
   },
 
   /**
-   * Build full i.SAF XML string.
-   * @param {Object} header - { companyName, registrationNumber, vatNumber, dataType, selectionStartDate, selectionEndDate, softwareName?, softwareVersion? }
+   * Build full i.SAF 1.2 XML string.
+   * @param {Object} header - { companyName, registrationNumber, vatNumber, dataType, selectionStartDate, selectionEndDate }
    * @param {Object[]} mappedRows - from ConvyMapping.applyMapping
    */
   build(header, mappedRows) {
     const enc = this.escape;
     const fmtDate = this.formatDate;
     const fmtNum = this.formatNumber;
+    const fmtVatRate = this.formatVatRate;
+    const NS = 'http://www.vmi.lt/cms/imas/isaf';
 
     const softwareCompanyName = enc(header.softwareCompanyName || 'Convy');
     const softwareName = enc(header.softwareName || 'Convy');
@@ -73,24 +93,29 @@ const ConvyISAF = {
     const dataType = (header.dataType === 'F' || header.dataType === 'S' || header.dataType === 'P') ? header.dataType : 'F';
     const startDate = fmtDate(header.selectionStartDate) || fmtDate(new Date());
     const endDate = fmtDate(header.selectionEndDate) || fmtDate(new Date());
+    const fileDateCreated = this.formatDateTime();
 
     let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
-    xml += '<AuditFile xmlns="https://www.vmi.lt/cms/saf-t">\n';
+    xml += '<iSAFFile xmlns="' + NS + '" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">\n';
 
-    // Part I – FileDescription
-    xml += '  <FileDescription>\n';
-    xml += '    <FileVersion>1.2</FileVersion>\n';
-    xml += '    <FileDateCreated>' + enc(this.formatDateTime()) + '</FileDateCreated>\n';
-    xml += '    <DataType>' + dataType + '</DataType>\n';
-    xml += '    <SoftwareCompanyName>' + softwareCompanyName + '</SoftwareCompanyName>\n';
-    xml += '    <SoftwareName>' + softwareName + '</SoftwareName>\n';
-    xml += '    <SoftwareVersion>' + softwareVersion + '</SoftwareVersion>\n';
-    xml += '    <RegistrationNumber>' + registrationNumber + '</RegistrationNumber>\n';
-    xml += '    <SelectionCriteria>\n';
-    xml += '      <SelectionStartDate>' + startDate + '</SelectionStartDate>\n';
-    xml += '      <SelectionEndDate>' + endDate + '</SelectionEndDate>\n';
-    xml += '    </SelectionCriteria>\n';
-    xml += '  </FileDescription>\n';
+    // Part I – Header > FileDescription
+    xml += '  <Header>\n';
+    xml += '    <FileDescription>\n';
+    xml += '      <FileVersion>iSAF1.2</FileVersion>\n';
+    xml += '      <FileDateCreated>' + fileDateCreated + '</FileDateCreated>\n';
+    xml += '      <DataType>' + dataType + '</DataType>\n';
+    xml += '      <SoftwareCompanyName>' + softwareCompanyName + '</SoftwareCompanyName>\n';
+    xml += '      <SoftwareName>' + softwareName + '</SoftwareName>\n';
+    xml += '      <SoftwareVersion>' + softwareVersion + '</SoftwareVersion>\n';
+    xml += '      <RegistrationNumber>' + registrationNumber + '</RegistrationNumber>\n';
+    xml += '      <NumberOfParts>1</NumberOfParts>\n';
+    xml += '      <PartNumber>1</PartNumber>\n';
+    xml += '      <SelectionCriteria>\n';
+    xml += '        <SelectionStartDate>' + startDate + '</SelectionStartDate>\n';
+    xml += '        <SelectionEndDate>' + endDate + '</SelectionEndDate>\n';
+    xml += '      </SelectionCriteria>\n';
+    xml += '    </FileDescription>\n';
+    xml += '  </Header>\n';
 
     const isPlaceholder = (v) => /\([^)]+\)/.test(String(v || '').trim());
     const isEmptyRow = (row) => {
@@ -105,7 +130,7 @@ const ConvyISAF = {
     const issued = invoices.filter(inv => inv.isIssued);
     const received = invoices.filter(inv => !inv.isIssued);
 
-    // Part II – MasterData: unique customers/suppliers (simplified: from invoice rows)
+    // Part II – MasterFiles: Customers, Suppliers (with Name)
     const customers = new Map();
     const suppliers = new Map();
     invoices.forEach(inv => {
@@ -113,71 +138,135 @@ const ConvyISAF = {
         const id = (line.counterpartyRegistrationNumber || line.counterpartyName || '').toString().trim();
         const vat = (line.counterpartyVatNumber || '').toString().trim() || 'ND';
         const country = (line.counterpartyCountry || '').toString().trim() || 'LT';
-        if (inv.isIssued && id) customers.set(id, { id, vat, country });
-        if (!inv.isIssued && id) suppliers.set(id, { id, vat, country });
+        const name = (line.counterpartyName || '').toString().trim() || 'ND';
+        if (inv.isIssued && id) customers.set(id, { id, vat, country, name });
+        if (!inv.isIssued && id) suppliers.set(id, { id, vat, country, name });
       });
     });
 
     if (customers.size || suppliers.size) {
       xml += '  <MasterFiles>\n';
-      customers.forEach((c, id) => {
-        xml += '    <Customer>\n';
-        xml += '      <CustomerID>' + enc(id) + '</CustomerID>\n';
-        xml += '      <VATRegistrationNumber>' + enc(c.vat) + '</VATRegistrationNumber>\n';
-        xml += '      <RegistrationNumber>' + enc(id) + '</RegistrationNumber>\n';
-        xml += '      <Country>' + enc(c.country) + '</Country>\n';
-        xml += '    </Customer>\n';
-      });
-      suppliers.forEach((s, id) => {
-        xml += '    <Supplier>\n';
-        xml += '      <SupplierID>' + enc(id) + '</SupplierID>\n';
-        xml += '      <VATRegistrationNumber>' + enc(s.vat) + '</VATRegistrationNumber>\n';
-        xml += '      <RegistrationNumber>' + enc(id) + '</RegistrationNumber>\n';
-        xml += '      <Country>' + enc(s.country) + '</Country>\n';
-        xml += '    </Supplier>\n';
-      });
+      if (customers.size) {
+        xml += '    <Customers>\n';
+        customers.forEach((c) => {
+          xml += '      <Customer>\n';
+          xml += '        <CustomerID>' + enc(c.id) + '</CustomerID>\n';
+          xml += '        <VATRegistrationNumber>' + enc(c.vat) + '</VATRegistrationNumber>\n';
+          xml += '        <RegistrationNumber>' + enc(c.id) + '</RegistrationNumber>\n';
+          xml += '        <Country>' + enc(c.country) + '</Country>\n';
+          xml += '        <Name>' + enc(c.name || 'ND') + '</Name>\n';
+          xml += '      </Customer>\n';
+        });
+        xml += '    </Customers>\n';
+      }
+      if (suppliers.size) {
+        xml += '    <Suppliers>\n';
+        suppliers.forEach((s) => {
+          xml += '      <Supplier>\n';
+          xml += '        <SupplierID>' + enc(s.id) + '</SupplierID>\n';
+          xml += '        <VATRegistrationNumber>' + enc(s.vat) + '</VATRegistrationNumber>\n';
+          xml += '        <RegistrationNumber>' + enc(s.id) + '</RegistrationNumber>\n';
+          xml += '        <Country>' + enc(s.country) + '</Country>\n';
+          xml += '        <Name>' + enc(s.name || 'ND') + '</Name>\n';
+          xml += '      </Supplier>\n';
+        });
+        xml += '    </Suppliers>\n';
+      }
       xml += '  </MasterFiles>\n';
     }
 
-    // Part III – SourceDocuments (IssuedInvoice / ReceivedInvoice)
-    xml += '  <SourceDocuments>\n';
-
-    const writeInvoice = (inv, tag) => {
+    // Part III – SourceDocuments: SalesInvoices (issued), PurchaseInvoices (received)
+    const writeSalesInvoice = (inv) => {
       const first = inv.lines[0];
       const net = inv.lines.reduce((sum, l) => sum + (Number(String(l.netAmount).replace(',', '.')) || 0), 0);
       const vat = inv.lines.reduce((sum, l) => sum + (Number(String(l.vatAmount).replace(',', '.')) || 0), 0);
-      let gross = inv.lines.reduce((sum, l) => sum + (Number(String(l.grossAmount).replace(',', '.')) || 0), 0);
-      if (!gross && (net || vat)) gross = net + vat; // i.SAF requires GrossTotal; derive from net+vat if not mapped
+      const taxCode = (first.vatClassificationCode || '').toString().trim() || 'PVM1';
+      const taxPct = fmtVatRate(first.vatRate) || '21';
       const invoiceDate = fmtDate(first.invoiceDate) || startDate;
       const buyerId = (first.counterpartyRegistrationNumber || first.counterpartyName || '').toString().trim();
-      xml += '    <' + tag + '>\n';
-      xml += '      <InvoiceNo>' + enc(inv.invoiceNumber) + '</InvoiceNo>\n';
-      xml += '      <InvoiceDate>' + invoiceDate + '</InvoiceDate>\n';
-      xml += '      <CustomerID>' + enc(buyerId) + '</CustomerID>\n';
-      xml += '      <NetTotal>' + fmtNum(net || first.netAmount) + '</NetTotal>\n';
-      xml += '      <VATTotal>' + fmtNum(vat || first.vatAmount) + '</VATTotal>\n';
-      xml += '      <GrossTotal>' + fmtNum(gross || first.grossAmount || (net + vat)) + '</GrossTotal>\n';
-      inv.lines.forEach(line => {
-        const taxCode = (line.vatClassificationCode || '').toString().trim() || '';
-        const taxPct = fmtNum(line.vatRate) || '';
-        xml += '      <Line>\n';
-        xml += '        <Description>' + enc(line.description || '') + '</Description>\n';
-        xml += '        <Quantity>' + fmtNum(line.quantity || 1) + '</Quantity>\n';
-        xml += '        <UnitPrice>' + fmtNum(line.unitPrice) + '</UnitPrice>\n';
-        xml += '        <NetAmount>' + fmtNum(line.netAmount) + '</NetAmount>\n';
-        if (taxCode) xml += '        <TaxCode>' + enc(taxCode) + '</TaxCode>\n';
-        if (taxPct) xml += '        <TaxPercentage>' + taxPct + '</TaxPercentage>\n';
-        xml += '        <VATAmount>' + fmtNum(line.vatAmount) + '</VATAmount>\n';
-        xml += '      </Line>\n';
-      });
-      xml += '    </' + tag + '>\n';
+      const buyerVat = (first.counterpartyVatNumber || '').toString().trim() || 'ND';
+      const buyerCountry = (first.counterpartyCountry || '').toString().trim() || 'LT';
+      const buyerName = (first.counterpartyName || '').toString().trim() || 'ND';
+
+      xml += '      <Invoice>\n';
+      xml += '        <InvoiceNo>' + enc(inv.invoiceNumber) + '</InvoiceNo>\n';
+      xml += '        <CustomerInfo>\n';
+      xml += '          <CustomerID>' + enc(buyerId) + '</CustomerID>\n';
+      xml += '          <VATRegistrationNumber>' + enc(buyerVat) + '</VATRegistrationNumber>\n';
+      xml += '          <RegistrationNumber>' + enc(buyerId) + '</RegistrationNumber>\n';
+      xml += '          <Country>' + enc(buyerCountry) + '</Country>\n';
+      xml += '          <Name>' + enc(buyerName) + '</Name>\n';
+      xml += '        </CustomerInfo>\n';
+      xml += '        <InvoiceDate>' + invoiceDate + '</InvoiceDate>\n';
+      xml += '        <InvoiceType>SF</InvoiceType>\n';
+      xml += '        <SpecialTaxation></SpecialTaxation>\n';
+      xml += '        <References></References>\n';
+      xml += '        <VATPointDate xsi:nil="true"></VATPointDate>\n';
+      xml += '        <DocumentTotals>\n';
+      xml += '          <DocumentTotal>\n';
+      xml += '            <TaxableValue>' + fmtNum(net) + '</TaxableValue>\n';
+      xml += '            <TaxCode>' + enc(taxCode) + '</TaxCode>\n';
+      xml += '            <TaxPercentage>' + taxPct + '</TaxPercentage>\n';
+      xml += '            <Amount>' + fmtNum(vat) + '</Amount>\n';
+      xml += '            <VATPointDate2 xsi:nil="true"></VATPointDate2>\n';
+      xml += '          </DocumentTotal>\n';
+      xml += '        </DocumentTotals>\n';
+      xml += '      </Invoice>\n';
     };
 
-    issued.forEach(inv => writeInvoice(inv, 'IssuedInvoice'));
-    received.forEach(inv => writeInvoice(inv, 'ReceivedInvoice'));
+    const writePurchaseInvoice = (inv) => {
+      const first = inv.lines[0];
+      const net = inv.lines.reduce((sum, l) => sum + (Number(String(l.netAmount).replace(',', '.')) || 0), 0);
+      const vat = inv.lines.reduce((sum, l) => sum + (Number(String(l.vatAmount).replace(',', '.')) || 0), 0);
+      const taxCode = (first.vatClassificationCode || '').toString().trim() || 'PVM1';
+      const taxPct = fmtVatRate(first.vatRate) || '21';
+      const invoiceDate = fmtDate(first.invoiceDate) || startDate;
+      const supplierId = (first.counterpartyRegistrationNumber || first.counterpartyName || '').toString().trim();
+      const supplierVat = (first.counterpartyVatNumber || '').toString().trim() || 'ND';
+      const supplierCountry = (first.counterpartyCountry || '').toString().trim() || 'LT';
+      const supplierName = (first.counterpartyName || '').toString().trim() || 'ND';
 
-    xml += '  </SourceDocuments>\n';
-    xml += '</AuditFile>';
+      xml += '      <Invoice>\n';
+      xml += '        <InvoiceNo>' + enc(inv.invoiceNumber) + '</InvoiceNo>\n';
+      xml += '        <SupplierInfo>\n';
+      xml += '          <SupplierID>' + enc(supplierId) + '</SupplierID>\n';
+      xml += '          <VATRegistrationNumber>' + enc(supplierVat) + '</VATRegistrationNumber>\n';
+      xml += '          <RegistrationNumber>' + enc(supplierId) + '</RegistrationNumber>\n';
+      xml += '          <Country>' + enc(supplierCountry) + '</Country>\n';
+      xml += '          <Name>' + enc(supplierName) + '</Name>\n';
+      xml += '        </SupplierInfo>\n';
+      xml += '        <InvoiceDate>' + invoiceDate + '</InvoiceDate>\n';
+      xml += '        <InvoiceType>SF</InvoiceType>\n';
+      xml += '        <SpecialTaxation></SpecialTaxation>\n';
+      xml += '        <References></References>\n';
+      xml += '        <VATPointDate xsi:nil="true"></VATPointDate>\n';
+      xml += '        <RegistrationAccountDate xsi:nil="true"></RegistrationAccountDate>\n';
+      xml += '        <DocumentTotals>\n';
+      xml += '          <DocumentTotal>\n';
+      xml += '            <TaxableValue>' + fmtNum(net) + '</TaxableValue>\n';
+      xml += '            <TaxCode>' + enc(taxCode) + '</TaxCode>\n';
+      xml += '            <TaxPercentage>' + taxPct + '</TaxPercentage>\n';
+      xml += '            <Amount>' + fmtNum(vat) + '</Amount>\n';
+      xml += '          </DocumentTotal>\n';
+      xml += '        </DocumentTotals>\n';
+      xml += '      </Invoice>\n';
+    };
+
+    if (issued.length || received.length) {
+      xml += '  <SourceDocuments>\n';
+      if (received.length) {
+        xml += '    <PurchaseInvoices>\n';
+        received.forEach(writePurchaseInvoice);
+        xml += '    </PurchaseInvoices>\n';
+      }
+      if (issued.length) {
+        xml += '    <SalesInvoices>\n';
+        issued.forEach(writeSalesInvoice);
+        xml += '    </SalesInvoices>\n';
+      }
+      xml += '  </SourceDocuments>\n';
+    }
+    xml += '</iSAFFile>';
     return xml;
   },
 };

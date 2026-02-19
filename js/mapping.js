@@ -195,7 +195,8 @@ var ConvyMapping = {
         const docTypeTokens = [
           'israsyt', 'gauta', 'issued', 'received', 'invoice', 'credit', 's', 'p', 'i', 'f',
           'tipas', 'type', 'sf', 'gaut', 'pardavimai', 'pirkimai', 'sales', 'purchases',
-          'israsyta', 'sale', 'purchase', 'outgoing', 'incoming', 'out', 'in'
+          'israsyta', 'sale', 'purchase', 'outgoing', 'incoming', 'out', 'in', 'pardavim',
+          'pirkim', 'gavimas', 'isdavimas', 'debit', 'flow'
         ];
         const norm = (x) => (x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
         matchCount = all.filter(s => {
@@ -232,7 +233,11 @@ var ConvyMapping = {
         matchCount = all.filter(s => /^-?\d+([.,]\d+)?$/.test(String(s).replace(',', '.'))).length;
         break;
       case 'vatRate': {
-        matchCount = all.filter(s => /^\d+([.,]\d+)?%?$/.test(String(s).replace(',', '.').replace('%', ''))).length;
+        const stdRates = [0, 5, 9, 21];
+        matchCount = all.filter(s => {
+          const n = parseFloat(String(s).replace(',', '.').replace('%', ''));
+          return !isNaN(n) && stdRates.some(r => Math.abs(n - r) <= 0.5);
+        }).length;
         break;
       }
       case 'vatAmount': {
@@ -253,21 +258,21 @@ var ConvyMapping = {
    */
   suggestMappingFromHeaders(headers, getColumnKey, sampleRows) {
     const hints = {
-      invoiceNumber: ['nr', 'numeris', 'number', 'sf', 'saskaitos', 'sąskaitos', 'invoice', 'no', 'no.', 'serija', 'invoice_id', 'id', 'pvm saskaitos fakturos numeris', 'pvm sąskaitos faktūros numeris'],
-      invoiceDate: ['data', 'date', 'dat', 'datra', 'saskaitos data', 'sąskaitos data', 'issuance', 'isdavimo', 'pvm saskaitos fakturos data', 'pvm sąskaitos faktūros data'],
-      documentType: ['tipas', 'type', 'israsyt', 'gaut', 'issued', 'received', 'invoice_type', 'dokumento', 'pardavimai', 'pirkimai', 'sales', 'purchases', 'kryptis', 'direction', 'rūšis', 'kind', 'doc_type', 'doc type', 'pvm saskaitos fakturos tipas'],
-      counterpartyName: ['pirkėjas', 'pirkėj', 'tiekėjas', 'tiekėj', 'buyer', 'supplier', 'customer', 'client', 'pavadinimas', 'name', 'company_name', 'kontrahentas', 'klientas', 'imoner', 'imone', 'imon', 'įmonė'],
-      counterpartyRegistrationNumber: ['kodas', 'code', 'imones kodas', 'įmonės kodas', 'registration', 'tax_code', 'pirkėjo kodas', 'tiekėjo kodas'],
-      counterpartyVatNumber: ['pvm kodas', 'pvm mokėtojo', 'vat number', 'vat kodas'],
-      counterpartyCountry: ['šalis', 'salis', 'country', 'valstybe'],
-      description: ['aprašymas', 'aprasymas', 'description', 'prekes', 'prekės', 'paslaugos', 'item'],
-      quantity: ['kiekis', 'quantity', 'qty'],
-      unitPrice: ['kaina', 'price', 'vnt', 'unit'],
-      netAmount: ['suma be pvm', 'net', 'be pvm', 'without vat', 'without_vat', 'amount_without', 'amount_without_vat', 'amount', 'suma', 'avra', 'apmokest', 'vertė', 'verte', 'taxable', 'value'],
-      vatRate: ['tarifas', 'rate', 'pvm %', 'vat rate', 'mokescio tarifas', 'mokesčio tarifas', 'tax rate'],
-      vatClassificationCode: ['pvm klasifikatoriaus', 'klasifikatoriaus kodas', 'tax code', 'pvm1', 'pvm2', 'pvm3', 'pvm4'],
-      vatAmount: ['pvm suma', 'vat amount', 'vat_amount', 'amount_vat', 'pvm eur', 'vat', 'pvm', 'nds'],
-      grossAmount: ['suma su pvm', 'gross', 'su pvm', 'total', 'with vat', 'with_vat', 'amount_with_vat', 'bendra suma', 'avra'],
+      invoiceNumber: ['nr', 'numeris', 'number', 'sf', 'saskaitos', 'sąskaitos', 'invoice', 'no', 'no.', 'serija', 'invoice_id', 'id', 'pvm saskaitos fakturos numeris', 'pvm sąskaitos faktūros numeris', 'pvm sf numeris', 'dokumento numeris', 'fakturos numeris', 'pvm sf nr', 'inv no', 'inv#', 'invoice no', 'invoice ref', 'doc number', 'document no', 'reference', 'inv_num', 'ref', 'doc_num', 'invoice_number'],
+      invoiceDate: ['data', 'date', 'dat', 'datra', 'saskaitos data', 'sąskaitos data', 'issuance', 'isdavimo data', 'data sf', 'pvm saskaitos fakturos data', 'pvm sąskaitos faktūros data', 'fakturos data', 'dokumento data', 'pvm sf data', 'invoice date', 'issue date', 'doc date', 'created', 'created date', 'bill date', 'invoice_date', 'inv_date', 'document_date'],
+      documentType: ['tipas', 'type', 'israsyt', 'gaut', 'issued', 'received', 'invoice_type', 'dokumento tipas', 'pardavimai', 'pirkimai', 'sales', 'purchases', 'kryptis', 'direction', 'rūšis', 'kind', 'doc_type', 'doc type', 'pvm saskaitos fakturos tipas', 'pvm sf tipas', 'flow', 'transaction_type', 'in out', 'sale purchase', 'gavimas', 'isdavimas'],
+      counterpartyName: ['pirkėjas', 'pirkėj', 'tiekėjas', 'tiekėj', 'buyer', 'supplier', 'customer', 'client', 'pavadinimas', 'name', 'company_name', 'kontrahentas', 'klientas', 'imoner', 'imone', 'imon', 'įmonė', 'pardavejas', 'pirkėjo pavadinimas', 'tiekėjo pavadinimas', 'vendor', 'customer name', 'company name', 'party name', 'vendor_name', 'customer_name', 'company', 'organization', 'counterparty', 'pirkėjo/tiekėjo'],
+      counterpartyRegistrationNumber: ['kodas', 'code', 'imones kodas', 'įmonės kodas', 'registration', 'tax_code', 'pirkėjo kodas', 'tiekėjo kodas', 'registracijos numeris', 'juridinio asmens kodas', 'jak', 'company code', 'registration number', 'tax id', 'org number', 'company number', 'reg no', 'registration_no', 'company_number', 'organization_number', 'org_no', 'company_code'],
+      counterpartyVatNumber: ['pvm kodas', 'pvm mokėtojo', 'vat number', 'vat kodas', 'pirkėjo pvm', 'tiekėjo pvm', 'pvm mokėtojo kodas', 'vat no', 'vat id', 'vat code', 'vat reg', 'vat_registration', 'tax number', 'vat_number'],
+      counterpartyCountry: ['šalis', 'salis', 'šalies kodas', 'salies kodas', 'country', 'valstybe', 'valstybė', 'country code', 'country_code', 'iso', 'šalies', 'country_iso'],
+      description: ['aprašymas', 'aprasymas', 'description', 'prekes', 'prekės', 'paslaugos', 'item', 'prekių aprašymas', 'desc', 'product', 'service', 'goods', 'line_description', 'product_description', 'item_description', 'prekės paslaugos'],
+      quantity: ['kiekis', 'quantity', 'qty', 'amount', 'units', 'vnt', 'kiek', 'qty_ordered', 'ordered_qty', 'quantity_ordered'],
+      unitPrice: ['kaina', 'price', 'vnt', 'unit', 'kaina vnt', 'vnt kaina', 'vieneto kaina', 'unit price', 'unit_price', 'price per unit', 'price_per_unit', 'unit_cost', 'price_vnt'],
+      netAmount: ['suma be pvm', 'net', 'be pvm', 'without vat', 'without_vat', 'amount_without', 'amount_without_vat', 'amount', 'suma', 'avra', 'apmokest', 'vertė', 'verte', 'taxable', 'value', 'neto', 'apmokestinama suma', 'net amount', 'amount without vat', 'taxable amount', 'base amount', 'subtotal', 'net_amount', 'amount_net', 'suma_be_pvm'],
+      vatRate: ['tarifas', 'rate', 'pvm %', 'vat rate', 'mokescio tarifas', 'mokesčio tarifas', 'tax rate', 'pvm tarifas', 'tarifas %', 'vat %', 'vat_rate', 'tax_rate', 'rate %', 'pvm_procentas'],
+      vatClassificationCode: ['pvm klasifikatoriaus', 'klasifikatoriaus kodas', 'tax code', 'pvm1', 'pvm2', 'pvm3', 'pvm4', 'pvm kodas klasifikatorius', 'tax_classification', 'vat_classification_code'],
+      vatAmount: ['pvm suma', 'vat amount', 'vat_amount', 'vat_amount_eur', 'amount_vat', 'pvm eur', 'nds', 'pvm suma eur', 'vat sum', 'vat_amount_eur', 'amount_vat_eur', 'vat_total', 'tax amount', 'pvm mokestis', 'pvm_suma'],
+      grossAmount: ['suma su pvm', 'gross', 'su pvm', 'total', 'with vat', 'with_vat', 'amount_with_vat', 'bendra suma', 'avra', 'suma su pvm eur', 'is viso', 'iš viso', 'gross amount', 'total amount', 'amount with vat', 'gross_amount', 'total_amount', 'bendra_suma'],
     };
     const mapping = {};
     const lower = (s) => (s != null ? String(s).toLowerCase() : '');
@@ -281,8 +286,9 @@ var ConvyMapping = {
       for (let i = 0; i < (headers || []).length; i++) {
         const h = lower(headers[i]);
         const hNorm = norm(headers[i]);
-        if (f.id === 'vatAmount' && (hNorm.includes('fakturos') || hNorm.includes('saskaitos') || ['kodas','numeris','tarifas','be pvm','data','tipas'].some(s => hNorm.includes(norm(s)) || h.includes(s)))) continue;
-        if (f.id === 'netAmount' && (hNorm.includes(norm('pvm suma')) || h.includes('pvm suma')) && !(hNorm.includes(norm('be pvm')) || h.includes('be pvm'))) continue;
+        if (f.id === 'vatAmount' && (hNorm.includes('fakturos') || hNorm.includes('saskaitos') || h.includes('without') || h.includes('without_vat') || h.includes('be pvm') || ['kodas','numeris','tarifas','data','tipas'].some(s => hNorm.includes(norm(s)) || h.includes(s)))) continue;
+        if (f.id === 'vatRate' && (h.includes('amount') || h.includes('eur') || h.includes('suma')) && !h.includes('rate') && !h.includes('tarifas')) continue;
+        if (f.id === 'netAmount' && ((hNorm.includes(norm('pvm suma')) || h.includes('pvm suma')) && !(hNorm.includes(norm('be pvm')) || h.includes('be pvm')) || h.includes('vat_amount') || h.includes('amount_vat') || (h.includes('vat amount') && !h.includes('without')))) continue;
         if (f.id === 'counterpartyRegistrationNumber' && (h.includes('pvm') || h.includes('šalies') || h.includes('salies'))) continue;
         if (f.id === 'invoiceNumber' && ((h.includes('data') && !h.includes('nr') && !h.includes('numeris')) || h.includes('mokesčių mokėtojo') || h.includes('identifikacinis'))) continue;
         if (f.id === 'invoiceDate' && (h.includes(' nr') || h.includes(' nr.') || (h.includes('numeris') && !h.includes('data')))) continue;
@@ -301,8 +307,10 @@ var ConvyMapping = {
         if (mapping[fieldId] && mapping[fieldId] !== '—') return;
         let bestKey = null;
         let bestScore = 0.25;
-        columnKeys.forEach(colKey => {
+        columnKeys.forEach((colKey, colIdx) => {
           if (usedColumns.has(colKey)) return;
+          const header = lower((headers || [])[colIdx] || colKey);
+          if (fieldId === 'vatRate' && (header.includes('amount') || header.includes('eur') || header.includes('suma')) && !header.includes('rate') && !header.includes('tarifas')) return;
           const values = sampleRows.map(r => r[colKey]);
           const score = this.scoreColumnContentForField(fieldId, values);
           if (score > bestScore) {

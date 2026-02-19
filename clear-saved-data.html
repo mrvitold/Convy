@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+  <meta charset="UTF-8">
+  <title>Convy – išvalyti išsaugotus duomenis</title>
+</head>
+<body>
+  <p id="msg">Išvaloma…</p>
+  <script>
+    try {
+      localStorage.removeItem('convy_company');
+      document.getElementById('msg').textContent = 'Atlikta. Convy išsaugoti duomenys išvalyti. Galite uždaryti šį langą.';
+    } catch (e) {
+      document.getElementById('msg').textContent = 'Klaida: ' + e.message;
+    }
+  </script>
+</body>
+</html>

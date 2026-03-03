@@ -877,7 +877,7 @@
       var ISAF = getConvyISAF();
       if (!ISAF) throw new Error('ConvyISAF not loaded');
       state.generatedXml = ISAF.build(header, mappedRows);
-      convertStatusEl.textContent = 'XML sukurtas sėkmingai.';
+      convertStatusEl.textContent = '';
       downloadSection.classList.remove('hidden');
     } catch (e) {
       if (convertStatusEl) convertStatusEl.textContent = 'Klaida: ' + (e && e.message ? e.message : e);

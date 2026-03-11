@@ -98,6 +98,18 @@ This ensures Inv3 links get the correct referrer when users arrive from Google A
 10. If using GA4: Link your GA4 property in Google Ads (**Tools** → **Linked accounts** → **Google Analytics 4**)
 11. Import the `xml_download` event as a conversion from GA4
 
+### Alternative: Google Ads conversion tag (already added)
+
+The Google Ads tag (AW-18008044667) is already in your site. To track XML downloads as conversions:
+
+1. In Google Ads: **Tools & Settings** → **Conversions** → **+ New conversion action** → **Website**
+2. Choose **Manually add a conversion**
+3. Conversion name: `XML Download`, Category: **Download**
+4. In **Tag setup**, select **Use Google Tag Manager** or **Install the tag yourself**
+5. Copy the `send_to` value from the event snippet (format: `AW-18008044667/XXXXXXXX`)
+6. Add to Netlify env: `CONVY_ADS_CONVERSION_SENDTO` = that `send_to` value  
+   Or add to `config.js`: `window.ConvyAdsConversionSendTo = 'AW-18008044667/XXXXXXXX';`
+
 ### Alternative: gtag conversion (without GA4)
 
 If you prefer direct Google Ads conversion:

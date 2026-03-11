@@ -1,0 +1,8 @@
+{
+  "name": "convy",
+  "version": "1.0.0",
+  "description": "Excel to i.SAF XML converter for VMI",
+  "scripts": {
+    "build": "node build.js"
+  }
+}

@@ -3,6 +3,23 @@
  */
 (function () {
   const STORAGE_KEY = 'convy_company';
+  const INV3_BASE = 'https://play.google.com/store/apps/details?id=com.vitol.inv3';
+
+  function initInv3Links() {
+    var params = new URLSearchParams(window.location.search);
+    var utmSource = params.get('utm_source');
+    var utmMedium = params.get('utm_medium');
+    var referrer = 'utm_source=convy&utm_medium=' + (utmSource === 'google' && (utmMedium === 'cpc' || utmMedium === 'ppc') ? 'google_ads' : 'web') + '&utm_campaign=convy_lt';
+    var href = INV3_BASE + '&referrer=' + encodeURIComponent(referrer);
+    document.querySelectorAll('[data-inv3-link]').forEach(function (a) {
+      a.href = href;
+    });
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initInv3Links);
+  } else {
+    initInv3Links();
+  }
   function getConvyMapping() {
     return (typeof window !== 'undefined' && window.ConvyMapping) || (typeof globalThis !== 'undefined' && globalThis.ConvyMapping) || null;
   }
@@ -894,6 +911,9 @@
     a.download = 'iSAF_' + (document.getElementById('period-start').value || 'export').replace(/-/g, '') + '.xml';
     a.click();
     URL.revokeObjectURL(url);
+    if (typeof window.ConvyTrackConversion === 'function') {
+      window.ConvyTrackConversion('xml_download');
+    }
   });
 
   function checkAI() {

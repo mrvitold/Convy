@@ -23,6 +23,10 @@
 
 Kad 1 žingsnio analizė ir „Pasiūlyti“ (stulpelių pasiūlymas) veiktų, **savininkas** įrašo savo API key faile **`js/config.js`**: atidarykite `js/config.js`, įrašykite key į `window.ConvyGeminiApiKey = 'JŪSŲ_KEY';`. Nemokamą key galite gauti [aistudio.google.com](https://aistudio.google.com) → Get API key. **Naudotojai šio lauko nemato** – key nėra rodomas puslapyje. Nekomituokite `config.js` su key į viešą repozitoriją (galite naudoti `config.example.js` kaip pavyzdį ir pridėti `config.js` į `.gitignore`).
 
+### Netlify deploy
+
+Jei naudojate Netlify ir GitHub, `config.js` generuojamas build metu iš aplinkos kintamųjų. Įrašykite **Site configuration** → **Environment variables**: `CONVY_GEMINI_API_KEY`, `CONVY_GA4_ID`. Žr. [docs/netlify-env-setup.md](docs/netlify-env-setup.md).
+
 ## Failų struktūra
 
 - `index.html` – vieno puslapio vedlys

@@ -7,15 +7,21 @@
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="google-site-verification" content="TzE3S46sKA5X3WwXtgix49_Kjdrc4xXRNk6V82fIdfI">
-  <title>Convy – Excel į i.SAF XML</title>
+  <title>Convy – Excel į XML i.SAF (nemokamai)</title>
+  <meta name="description" content="Excel konvertuoti į XML i.SAF nemokamai. PVM sąskaitų faktūrų duomenys – Excel į i.SAF XML VMI teikimui. Konverteris veikia naršyklėje, duomenys apdorojami vietoje.">
+  <link rel="canonical" href="https://convy.lt/">
+  <meta property="og:title" content="Convy – Excel į XML i.SAF (nemokamai)">
+  <meta property="og:description" content="Excel konvertuoti į XML i.SAF nemokamai. PVM sąskaitų faktūrų duomenys – Excel į i.SAF XML VMI teikimui.">
+  <meta property="og:url" content="https://convy.lt/">
+  <meta property="og:type" content="website">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <div class="app">
     <header class="header">
-      <h1>Convy</h1>
-      <p class="tagline">PVM sąskaitų faktūrų Excel → i.SAF XML (VMI)</p>
-      <p class="tagline-sub">Nemokamas ir patogus būdas konvertuoti Excel sąskaitų faktūrų registrą į XML formatą.</p>
+      <h1>Convy – Excel į XML i.SAF</h1>
+      <p class="tagline">Konverteris PVM sąskaitų faktūrų registrui – Excel failas tampa XML, i.SAF VMI teikimui</p>
+      <p class="tagline-sub">Išmanus konverteris – prisitaiko prie jūsų Excel failo. Nemokamai ir saugiai – duomenys apdorojami tik jūsų naršyklėje.</p>
       <div class="wizard-steps" role="tablist">
         <button type="button" class="step-dot active" data-step="1" aria-label="Žingsnis 1: Įkelti failą" title="1. Įkelti failą"></button>
         <button type="button" class="step-dot" data-step="2" aria-label="Žingsnis 2: Įmonės duomenys" title="2. Įmonės duomenys"></button>
@@ -27,7 +33,7 @@
     <main class="main">
       <!-- Step 1: Upload -->
       <section id="step-1" class="step-panel active" data-step="1">
-        <h2>1. Įkelkite Excel failą</h2>
+        <h2>1. Įkelkite Excel failą su PVM sąskaitomis</h2>
         <label class="upload-zone" id="upload-zone">
           <p>Spustelėkite arba nutempkite Excel failą čia</p>
           <p class="upload-hint">Tik XLSX failai</p>
@@ -47,7 +53,7 @@
         <div class="inv3-ad inv3-ad-main">
           <img src="img/inv3/icon-192.png" alt="Inv3" class="inv3-logo">
           <p>Jeigu jūsų sąskaitos popierinės, nuotraukuose arba PDF, galite juos perkelti į Excel registrą su Inv3 aplikacijos pagalba! Išbandykite nemokamai!</p>
-          <a href="https://play.google.com/store/apps/details?id=com.vitol.inv3&pcampaignid=web_share" target="_blank" rel="noopener noreferrer" class="inv3-play-link">
+          <a href="https://play.google.com/store/apps/details?id=com.vitol.inv3" target="_blank" rel="noopener noreferrer" class="inv3-play-link" data-inv3-link>
             <img src="img/inv3/google-play-badge.svg" alt="Parsisiųskite iš Google Play" class="inv3-play-badge">
           </a>
         </div>
@@ -55,7 +61,7 @@
 
       <!-- Step 2: Company / file info -->
       <section id="step-2" class="step-panel" data-step="2">
-        <h2>2. Įmonės ir failo informacija</h2>
+        <h2>2. Įmonės duomenys ir i.SAF XML antraštė</h2>
         <p class="step-desc">Šie duomenys bus įtraukti į XML antraštę. VMI reikalauja įmonės kodo ir PVM kodo. Išsaugomi naršyklėje kitam kartui.</p>
         <form id="company-form" class="form-grid">
           <div class="form-group">
@@ -92,13 +98,13 @@
           <button type="button" id="goto-mapping" class="btn-primary">Toliau – stulpelių susiejimas</button>
         </div>
         <div class="inv3-ad inv3-ad-mini">
-          Sąskaitos popierinės? Perkelkite į Excel su <a href="https://play.google.com/store/apps/details?id=com.vitol.inv3&pcampaignid=web_share" target="_blank" rel="noopener noreferrer">Inv3</a> – nemokamai!
+          Sąskaitos popierinės? Perkelkite į Excel su <a href="https://play.google.com/store/apps/details?id=com.vitol.inv3" target="_blank" rel="noopener noreferrer" data-inv3-link>Inv3</a> – nemokamai!
         </div>
       </section>
 
       <!-- Step 3: Column mapping -->
       <section id="step-3" class="step-panel" data-step="3">
-        <h2>3. Susiekite stulpelius</h2>
+        <h2>3. Susiekite Excel stulpelius su i.SAF laukais</h2>
         <p class="step-desc step-desc-friendly">Jūsų Excel faile <strong>kiekviena eilutė</strong> = viena sąskaita arba jos eilutė. Pasirinkite, kuris stulpelis atitinka kurį lauką. Paryškinti laukai būtini XML; kitus galite praleisti. Stulpelius galite rinktis pagal pavadinimą arba raidę (A, B, C…).</p>
         <p id="ollama-status" class="ollama-status mapping-status"></p>
         <div id="mapping-table-wrap" class="mapping-table-wrap">
@@ -132,13 +138,13 @@
           <button type="button" id="goto-convert" class="btn-primary">Toliau – konvertuoti</button>
         </div>
         <div class="inv3-ad inv3-ad-mini">
-          Sąskaitos popierinės? Perkelkite į Excel su <a href="https://play.google.com/store/apps/details?id=com.vitol.inv3&pcampaignid=web_share" target="_blank" rel="noopener noreferrer">Inv3</a> – nemokamai!
+          Sąskaitos popierinės? Perkelkite į Excel su <a href="https://play.google.com/store/apps/details?id=com.vitol.inv3" target="_blank" rel="noopener noreferrer" data-inv3-link>Inv3</a> – nemokamai!
         </div>
       </section>
 
       <!-- Step 4: Convert & missing data Q&A -->
       <section id="step-4" class="step-panel" data-step="4">
-        <h2>4. Konvertuoti į i.SAF XML</h2>
+        <h2>4. Konvertuoti Excel į XML i.SAF</h2>
         <div id="missing-data-section" class="missing-data-section hidden">
           <p class="missing-intro">Kai kurių reikalingų duomenų trūksta. Atsakykite į klausimus:</p>
           <div id="missing-questions"></div>
@@ -161,7 +167,7 @@
         <div class="inv3-ad inv3-ad-main">
           <img src="img/inv3/icon-192.png" alt="Inv3" class="inv3-logo">
           <p>Jeigu jūsų sąskaitos popierinės, nuotraukuose arba PDF, galite juos perkelti į Excel registrą su Inv3 aplikacijos pagalba! Išbandykite nemokamai!</p>
-          <a href="https://play.google.com/store/apps/details?id=com.vitol.inv3&pcampaignid=web_share" target="_blank" rel="noopener noreferrer" class="inv3-play-link">
+          <a href="https://play.google.com/store/apps/details?id=com.vitol.inv3" target="_blank" rel="noopener noreferrer" class="inv3-play-link" data-inv3-link>
             <img src="img/inv3/google-play-badge.svg" alt="Parsisiųskite iš Google Play" class="inv3-play-badge">
           </a>
         </div>
@@ -176,6 +182,7 @@
 
   <script src="js/xlsx.full.min.js"></script>
   <script src="js/config.js"></script>
+  <script src="js/analytics.js"></script>
   <script src="js/parser.js"></script>
   <script src="js/mapping.js"></script>
   <script src="js/missing-data.js"></script>

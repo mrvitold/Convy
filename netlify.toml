@@ -1,0 +1,6 @@
+# Netlify build configuration for convy.lt
+# Set CONVY_GEMINI_API_KEY and CONVY_GA4_ID in Netlify → Site configuration → Environment variables
+
+[build]
+  command = "npm run build"
+  publish = "."

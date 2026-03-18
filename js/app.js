@@ -13,6 +13,12 @@
     var href = INV3_BASE + '&referrer=' + encodeURIComponent(referrer);
     document.querySelectorAll('[data-inv3-link]').forEach(function (a) {
       a.href = href;
+      if (!a.dataset.inv3Tracked) {
+        a.dataset.inv3Tracked = '1';
+        a.addEventListener('click', function () {
+          if (typeof window.ConvyTrackPlayClick === 'function') window.ConvyTrackPlayClick();
+        });
+      }
     });
   }
   if (document.readyState === 'loading') {

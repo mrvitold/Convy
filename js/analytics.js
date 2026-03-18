@@ -25,9 +25,10 @@
   }
 
   window.ConvyTrackConversion = function (eventName) {
+    var payload = { send_to: ADS_SEND_TO, value: 1.0, currency: 'EUR' };
     if (typeof window.gtag === 'function') {
-      if (GA4_ID) gtag('event', eventName || 'xml_download');
-      if (ADS_SEND_TO) gtag('event', 'conversion', { send_to: ADS_SEND_TO });
+      if (GA4_ID) window.gtag('event', eventName || 'xml_download');
+      if (ADS_SEND_TO) window.gtag('event', 'conversion', payload);
     }
   };
 })();

@@ -904,6 +904,9 @@
 
   downloadXmlBtn.addEventListener('click', () => {
     if (!state.generatedXml) return;
+    if (typeof window.ConvyTrackConversion === 'function') {
+      window.ConvyTrackConversion('xml_download');
+    }
     const blob = new Blob([state.generatedXml], { type: 'application/xml;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -911,9 +914,6 @@
     a.download = 'iSAF_' + (document.getElementById('period-start').value || 'export').replace(/-/g, '') + '.xml';
     a.click();
     URL.revokeObjectURL(url);
-    if (typeof window.ConvyTrackConversion === 'function') {
-      window.ConvyTrackConversion('xml_download');
-    }
   });
 
   function checkAI() {

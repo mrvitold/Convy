@@ -9,3 +9,4 @@ window.ConvyGA4Id = '';
 
 /** Google Ads conversion send_to (e.g. AW-18008044667/AbCdEfGh). Set when you create a conversion action in Google Ads. */
 window.ConvyAdsConversionSendTo = '';
+window.ConvyAdsPageViewSendTo = '';

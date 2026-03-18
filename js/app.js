@@ -76,6 +76,8 @@
   const step1AiStatusEl = document.getElementById('step1-ai-status');
   const sheetSelectEl = document.getElementById('sheet-select');
   const sheetSelectLabel = document.getElementById('sheet-select-label');
+  const uploadLoadingEl = document.getElementById('upload-loading');
+  const step1AiLoadingEl = document.getElementById('step1-ai-loading');
   function getAIProvider() {
     var key = (typeof window !== 'undefined' && window.ConvyGeminiApiKey) ? (window.ConvyGeminiApiKey || '').trim() : '';
     if (key && typeof ConvyGemini !== 'undefined' && ConvyGemini.chat) return ConvyGemini;
@@ -341,10 +343,19 @@
       alert('Excel biblioteka neįkelta. Patikrinkite ar js/xlsx.full.min.js egzistuoja.');
       return;
     }
+    if (uploadZone) uploadZone.classList.add('loading');
+    if (uploadLoadingEl) uploadLoadingEl.classList.remove('hidden');
     if (step1AiStatusEl) step1AiStatusEl.textContent = 'Apdorojama…';
     const reader = new FileReader();
-    reader.onerror = function () { if (step1AiStatusEl) step1AiStatusEl.textContent = ''; alert('Nepavyko nuskaityti failo.'); };
+    reader.onerror = function () {
+      if (uploadZone) uploadZone.classList.remove('loading');
+      if (uploadLoadingEl) uploadLoadingEl.classList.add('hidden');
+      if (step1AiStatusEl) step1AiStatusEl.textContent = '';
+      alert('Nepavyko nuskaityti failo.');
+    };
     reader.onload = () => {
+      if (uploadZone) uploadZone.classList.remove('loading');
+      if (uploadLoadingEl) uploadLoadingEl.classList.add('hidden');
       try {
         const buf = reader.result;
         const { sheetNames, sheets } = ConvyParser.readWorkbook(buf);
@@ -390,8 +401,11 @@
               if (step1AiStatusEl) step1AiStatusEl.textContent = 'Lapas ir antraštės eilutė nustatyti automatiškai. Pakeiskite žemiau, jei reikia.';
               return;
             }
-            step1AiStatusEl.textContent = 'Analizuojama…';
+            if (step1AiStatusEl) step1AiStatusEl.classList.add('hidden');
+            if (step1AiLoadingEl) step1AiLoadingEl.classList.remove('hidden');
             ai.analyzeUpload(sheetNames, previewText, function (err, result) {
+              if (step1AiLoadingEl) step1AiLoadingEl.classList.add('hidden');
+              if (step1AiStatusEl) step1AiStatusEl.classList.remove('hidden');
               if (err || !result) {
                 if (step1AiStatusEl) step1AiStatusEl.textContent = 'Lapas ir antraštės eilutė nustatyti automatiškai. Pakeiskite žemiau, jei reikia.';
                 return;
@@ -416,6 +430,7 @@
           });
         } else {
           if (step1AiStatusEl) step1AiStatusEl.textContent = 'Lapas ir antraštės eilutė nustatyti automatiškai. Pakeiskite žemiau, jei reikia.';
+          if (step1AiLoadingEl) step1AiLoadingEl.classList.add('hidden');
         }
       } catch (err) {
         if (step1AiStatusEl) step1AiStatusEl.textContent = '';
@@ -476,24 +491,18 @@
       if (CM && CM.suggestMappingFromHeaders) return CM.suggestMappingFromHeaders(state.headers, getKey, sampleRows);
       return suggestMappingFromHeadersFallback(state.headers, getKey, sampleRows);
     }
+    var suggested = runHeaderAndContentSuggestion();
+    buildMappingUI(suggested);
+    renderSampleTable();
+    if (ollamaStatusEl) ollamaStatusEl.textContent = 'Pasiūlytas susiejimas taikytas.';
     var ai = getAIProvider();
-    if (!ai || !ai.suggestMapping) {
-      var suggested = runHeaderAndContentSuggestion();
-      buildMappingUI(suggested);
-      renderSampleTable();
-      if (ollamaStatusEl) ollamaStatusEl.textContent = 'Pasiūlytas susiejimas taikytas.';
-      return;
-    }
+    if (!ai || !ai.suggestMapping) return;
     if (ollamaStatusEl) ollamaStatusEl.textContent = 'Pasiūlymas ruošiamas…';
     ai.suggestMapping(state.headers, state.sheetObjects.slice(0, 8), (err, mapping) => {
       if (err || !mapping) {
-        if (ollamaStatusEl) ollamaStatusEl.textContent = 'Automatinis susiejimas laikinai nepasiekiamas. Taikytas pasiūlymas pagal stulpelių pavadinimus ir turinį.';
-        var suggested = runHeaderAndContentSuggestion();
-        buildMappingUI(suggested);
-        renderSampleTable();
+        if (ollamaStatusEl) ollamaStatusEl.textContent = 'Pasiūlytas susiejimas taikytas.';
         return;
       }
-      if (ollamaStatusEl) ollamaStatusEl.textContent = 'Pasiūlytas susiejimas taikytas.';
       var normalized = {};
       Object.keys(mapping).forEach(function (k) {
         var v = mapping[k];
@@ -509,6 +518,7 @@
       if (CM && CM.deduplicateMapping) normalized = CM.deduplicateMapping(normalized);
       buildMappingUI(normalized);
       renderSampleTable();
+      if (ollamaStatusEl) ollamaStatusEl.textContent = 'Pasiūlytas susiejimas atnaujintas.';
     });
   }
 
@@ -885,21 +895,27 @@
   });
 
   doConvertBtn.addEventListener('click', () => {
-    try {
-      const header = getHeaderFromForm();
-      var CM = getConvyMapping();
-      var mappedRows = CM ? CM.applyMapping(state.mapping, state.sheetObjects) : applyMappingFallback(state.mapping, state.sheetObjects);
-      mappedRows = applyDataTypeToRows(mappedRows, header.dataType);
-      mappedRows = filterEmptyInvoiceRows(mappedRows);
-      var ISAF = getConvyISAF();
-      if (!ISAF) throw new Error('ConvyISAF not loaded');
-      state.generatedXml = ISAF.build(header, mappedRows);
-      convertStatusEl.textContent = '';
-      downloadSection.classList.remove('hidden');
-    } catch (e) {
-      if (convertStatusEl) convertStatusEl.textContent = 'Klaida: ' + (e && e.message ? e.message : e);
-      if (convertStatusEl) convertStatusEl.className = 'convert-status has-issues';
-    }
+    doConvertBtn.classList.add('loading');
+    convertStatusEl.textContent = '';
+    var done = function () { doConvertBtn.classList.remove('loading'); };
+    setTimeout(function () {
+      try {
+        const header = getHeaderFromForm();
+        var CM = getConvyMapping();
+        var mappedRows = CM ? CM.applyMapping(state.mapping, state.sheetObjects) : applyMappingFallback(state.mapping, state.sheetObjects);
+        mappedRows = applyDataTypeToRows(mappedRows, header.dataType);
+        mappedRows = filterEmptyInvoiceRows(mappedRows);
+        var ISAF = getConvyISAF();
+        if (!ISAF) throw new Error('ConvyISAF not loaded');
+        state.generatedXml = ISAF.build(header, mappedRows);
+        convertStatusEl.textContent = '';
+        downloadSection.classList.remove('hidden');
+      } catch (e) {
+        if (convertStatusEl) convertStatusEl.textContent = 'Klaida: ' + (e && e.message ? e.message : e);
+        if (convertStatusEl) convertStatusEl.className = 'convert-status has-issues';
+      }
+      done();
+    }, 50);
   });
 
   downloadXmlBtn.addEventListener('click', () => {

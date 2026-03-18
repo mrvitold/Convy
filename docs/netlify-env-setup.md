@@ -15,7 +15,8 @@ For convy.lt to work with AI features and GA4 tracking on the live site, add the
 |----------|-------|----------|
 | `CONVY_GEMINI_API_KEY` | Your Gemini API key from [aistudio.google.com](https://aistudio.google.com) | For AI features (sheet detection, column suggestions) |
 | `CONVY_GA4_ID` | Your GA4 Measurement ID (e.g. `G-XXXXXXXXXX`) | For conversion tracking (optional – leave empty to disable) |
-| `CONVY_ADS_CONVERSION_SENDTO` | Google Ads conversion `send_to` (e.g. `AW-18008044667/LABEL`) | For XML download conversion in Google Ads (optional) |
+| `CONVY_ADS_CONVERSION_SENDTO` | Google Ads conversion `send_to` (e.g. `AW-18008044667/S89fCMvVlYscEPvo84pD`) | For XML download conversion (optional) |
+| `CONVY_ADS_PAGEVIEW_SENDTO` | Google Ads Page view conversion `send_to` (e.g. `AW-18008044667/PiLLCLKYtYYcEPvo84pD`) | For page view conversion (optional) |
 
 ## After Adding
 

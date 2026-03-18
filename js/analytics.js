@@ -1,11 +1,13 @@
 /**
  * Convy – GA4 and Google Ads conversion tracking.
  * GA4: Set window.ConvyGA4Id (e.g. G-XXXXXXXXXX) in config.js.
- * Google Ads: Set window.ConvyAdsConversionSendTo (e.g. AW-XXXXX/LABEL) when you create a conversion action.
+ * Google Ads: Set window.ConvyAdsConversionSendTo (e.g. AW-XXXXX/LABEL) for XML download.
+ * Google Ads: Set window.ConvyAdsPageViewSendTo (e.g. AW-XXXXX/LABEL) for page view conversion.
  */
 (function () {
   var GA4_ID = (typeof window !== 'undefined' && window.ConvyGA4Id) ? String(window.ConvyGA4Id || '').trim() : '';
   var ADS_SEND_TO = (typeof window !== 'undefined' && window.ConvyAdsConversionSendTo) ? String(window.ConvyAdsConversionSendTo || '').trim() : '';
+  var ADS_PAGEVIEW_SEND_TO = (typeof window !== 'undefined' && window.ConvyAdsPageViewSendTo) ? String(window.ConvyAdsPageViewSendTo || '').trim() : '';
 
   if (GA4_ID) {
     (function (w, d, s, l, i) {
@@ -31,4 +33,8 @@
       if (ADS_SEND_TO) window.gtag('event', 'conversion', payload);
     }
   };
+
+  if (ADS_PAGEVIEW_SEND_TO && typeof window.gtag === 'function') {
+    window.gtag('event', 'conversion', { send_to: ADS_PAGEVIEW_SEND_TO, value: 1.0, currency: 'EUR' });
+  }
 })();

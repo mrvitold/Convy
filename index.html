@@ -43,24 +43,31 @@
       <section id="step-1" class="step-panel active" data-step="1">
         <h2>1. Įkelkite Excel failą su PVM sąskaitomis</h2>
         <label class="upload-zone" id="upload-zone">
-          <p>Spustelėkite arba nutempkite Excel failą čia</p>
-          <p class="upload-hint">Tik XLSX failai</p>
+          <span class="upload-zone-content">
+            <p>Spustelėkite arba nutempkite Excel failą čia</p>
+            <p class="upload-hint">Tik XLSX failai</p>
+          </span>
+          <span class="upload-loading hidden" id="upload-loading" aria-live="polite">
+            <span class="loading-spinner"></span>
+            <span class="loading-text">Apdorojama…</span>
+          </span>
           <input type="file" id="file-input" accept=".xlsx,.xls" tabindex="-1" aria-hidden="true">
         </label>
         <div id="upload-result" class="upload-result hidden">
           <p><strong id="file-name"></strong> <button type="button" id="change-file-btn" class="btn-link">Pakeisti failą</button></p>
           <p id="step1-ai-status" class="step1-ai-status"></p>
+          <p class="step1-ai-loading hidden" id="step1-ai-loading"><span class="loading-spinner step1-spinner"></span> Analizuojama…</p>
           <p id="sheet-info"></p>
           <div id="step1-override" class="step1-override">
             <label id="sheet-select-label" class="hidden">Lapas: <select id="sheet-select"></select></label>
             <label>Antraštės eilutė: <input type="number" id="header-row" min="1" value="1"></label>
             <p class="step1-override-hint">Pakeiskite tik jei automatinis nustatymas suklydo arba norite kitaip.</p>
           </div>
-          <button type="button" id="confirm-upload">Toliau – įmonės duomenys</button>
+          <button type="button" id="confirm-upload" class="btn-primary">Toliau – įmonės duomenys</button>
         </div>
         <div class="inv3-ad inv3-ad-main">
           <img src="img/inv3/icon-192.png" alt="Inv3" class="inv3-logo">
-          <p>Jeigu jūsų sąskaitos popierinės, nuotraukuose arba PDF, galite juos perkelti į Excel registrą su Inv3 aplikacijos pagalba! Išbandykite nemokamai!</p>
+          <p>Jeigu jūsų sąskaitos popierinės, nuotraukose arba PDF, galite jas perkelti į Excel registrą su Inv3 aplikacijos pagalba! Išbandykite nemokamai!</p>
           <a href="https://play.google.com/store/apps/details?id=com.vitol.inv3" target="_blank" rel="noopener noreferrer" class="inv3-play-link" data-inv3-link>
             <img src="img/inv3/google-play-badge.svg" alt="Parsisiųskite iš Google Play" class="inv3-play-badge">
           </a>
@@ -157,12 +164,18 @@
           <p class="missing-intro">Kai kurių reikalingų duomenų trūksta. Atsakykite į klausimus:</p>
           <div id="missing-questions"></div>
           <div class="step-actions">
-            <button type="button" id="apply-missing-answers">Taikyti ir tikrinti dar kartą</button>
+            <button type="button" id="apply-missing-answers" class="btn-primary">Taikyti ir tikrinti dar kartą</button>
           </div>
         </div>
         <div id="convert-section" class="convert-section">
           <p id="convert-status" class="convert-status"></p>
-          <button type="button" id="do-convert" class="btn-primary">Konvertuoti į i.SAF XML</button>
+          <button type="button" id="do-convert" class="btn-primary">
+            <span class="btn-convert-text">Konvertuoti į i.SAF XML</span>
+            <span class="btn-convert-loading hidden">
+              <span class="loading-spinner btn-spinner"></span>
+              <span>Konvertuojama…</span>
+            </span>
+          </button>
           <div id="download-section" class="download-section hidden">
             <p>XML failas paruoštas.</p>
             <button type="button" id="download-xml" class="btn-primary">Atsisiųsti XML</button>
@@ -174,7 +187,7 @@
         </div>
         <div class="inv3-ad inv3-ad-main">
           <img src="img/inv3/icon-192.png" alt="Inv3" class="inv3-logo">
-          <p>Jeigu jūsų sąskaitos popierinės, nuotraukuose arba PDF, galite juos perkelti į Excel registrą su Inv3 aplikacijos pagalba! Išbandykite nemokamai!</p>
+          <p>Jeigu jūsų sąskaitos popierinės, nuotraukose arba PDF, galite jas perkelti į Excel registrą su Inv3 aplikacijos pagalba! Išbandykite nemokamai!</p>
           <a href="https://play.google.com/store/apps/details?id=com.vitol.inv3" target="_blank" rel="noopener noreferrer" class="inv3-play-link" data-inv3-link>
             <img src="img/inv3/google-play-badge.svg" alt="Parsisiųskite iš Google Play" class="inv3-play-badge">
           </a>

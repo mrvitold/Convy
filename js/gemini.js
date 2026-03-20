@@ -1,9 +1,9 @@
 /**
  * Google Gemini integration for step 1 analysis and "Pasiūlyti" mapping.
- * Get a free API key at https://aistudio.google.com
+ * API key: config.js (aistudio.google.com). Optional model: window.ConvyGeminiModel (e.g. gemini-flash-latest).
  */
 const ConvyGemini = {
-  model: 'gemini-1.5-flash',
+  defaultModel: 'gemini-2.5-flash',
   timeout: 30000,
   apiBase: 'https://generativelanguage.googleapis.com/v1beta',
 
@@ -11,11 +11,16 @@ const ConvyGemini = {
     return (typeof window !== 'undefined' && window.ConvyGeminiApiKey) ? (window.ConvyGeminiApiKey || '').trim() : '';
   },
 
+  getModel() {
+    var custom = (typeof window !== 'undefined' && window.ConvyGeminiModel != null) ? String(window.ConvyGeminiModel).trim() : '';
+    return custom || this.defaultModel;
+  },
+
   /** Consider available if API key is set */
   available(callback) {
     var key = this.getApiKey();
     if (!key) return callback(false);
-    fetch(this.apiBase + '/models/' + this.model + '?key=' + encodeURIComponent(key), {
+    fetch(this.apiBase + '/models/' + this.getModel() + '?key=' + encodeURIComponent(key), {
       method: 'GET',
       signal: AbortSignal.timeout(5000),
     })
@@ -87,7 +92,7 @@ const ConvyGemini = {
   chat(prompt, callback) {
     var key = this.getApiKey();
     if (!key) return callback(new Error('Service not configured'));
-    var url = this.apiBase + '/models/' + this.model + ':generateContent?key=' + encodeURIComponent(key);
+    var url = this.apiBase + '/models/' + this.getModel() + ':generateContent?key=' + encodeURIComponent(key);
     var controller = new AbortController();
     var to = setTimeout(function () { controller.abort(); }, this.timeout);
     fetch(url, {

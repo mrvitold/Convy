@@ -33,7 +33,7 @@
     return (typeof window !== 'undefined' && window.ConvyISAF) || (typeof globalThis !== 'undefined' && globalThis.ConvyISAF) || null;
   }
   function applyMappingFallback(mapping, sheetObjects) {
-    var fields = ['invoiceNumber','invoiceDate','documentType','counterpartyName','counterpartyRegistrationNumber','counterpartyVatNumber','counterpartyCountry','netAmount','vatAmount','grossAmount','description','quantity','unitPrice','vatRate','vatClassificationCode'];
+    var fields = ['invoiceNumber','invoiceDate','documentType','counterpartyName','counterpartyRegistrationNumber','counterpartyVatNumber','counterpartyCountry','netAmount','vatAmount','grossAmount','vatRate','vatClassificationCode'];
     var CM = getConvyMapping();
     var m = (CM && CM.deduplicateMapping) ? CM.deduplicateMapping(mapping) : mapping;
     var parseNum = function(v){ if (v == null || v === '') return NaN; return Number(String(v).replace(',', '.')); };
@@ -636,7 +636,7 @@
   }
 
   function deduplicateMappingInline(mapping, columnKeys) {
-    var fieldOrder = ['invoiceNumber','invoiceDate','documentType','counterpartyName','counterpartyRegistrationNumber','counterpartyVatNumber','counterpartyCountry','description','quantity','unitPrice','netAmount','vatRate','vatClassificationCode','vatAmount','grossAmount'];
+    var fieldOrder = ['invoiceNumber','invoiceDate','documentType','counterpartyName','counterpartyRegistrationNumber','counterpartyVatNumber','counterpartyCountry','netAmount','vatRate','vatClassificationCode','vatAmount','grossAmount'];
     var keyToIndex = {};
     if (columnKeys && columnKeys.length) {
       for (var i = 0; i < columnKeys.length; i++) {

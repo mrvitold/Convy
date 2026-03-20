@@ -22,9 +22,6 @@ var ConvyMapping = {
     { id: 'counterpartyRegistrationNumber', label: 'Pirkėjo / Tiekėjo kodas', required: true },
     { id: 'counterpartyVatNumber', label: 'Pirkėjo / Tiekėjo PVM kodas', required: true },
     { id: 'counterpartyCountry', label: 'Šalis (kodas)', required: false },
-    { id: 'description', label: 'Aprašymas / Prekės paslaugos', required: false },
-    { id: 'quantity', label: 'Kiekis', required: false },
-    { id: 'unitPrice', label: 'Kaina vnt.', required: false },
     { id: 'netAmount', label: 'Suma be PVM', required: true },
     { id: 'vatRate', label: 'Mokesčio tarifas / PVM tarifas (%)', required: true },
     { id: 'vatClassificationCode', label: 'PVM klasifikatoriaus kodas (pvz. PVM1, PVM2 – gali būti skaičiuojamas iš tarifo)', required: false },
@@ -188,7 +185,6 @@ var ConvyMapping = {
     if (nonEmpty.length === 0) return 0;
     const str = (v) => String(v).trim().toLowerCase();
     const all = nonEmpty.map(str);
-    const unique = [...new Set(all)];
     let matchCount = 0;
     switch (fieldId) {
       case 'documentType': {
@@ -220,18 +216,7 @@ var ConvyMapping = {
       case 'counterpartyCountry': {
         matchCount = all.filter(s => /^[A-Za-z]{2}$/.test(String(s).trim())).length;
         break;
-      case 'description': {
-        const avgLen = all.reduce((a, s) => a + s.length, 0) / all.length;
-        const multiWord = all.filter(s => s.split(/\s+/).length >= 2).length;
-        return (Math.min(1, avgLen / 20) * 0.5 + (multiWord / nonEmpty.length) * 0.5);
       }
-      case 'quantity': {
-        matchCount = all.filter(s => /^\d+([.,]\d+)?$/.test(String(s).replace(',', '.'))).length;
-        break;
-      }
-      case 'unitPrice': {
-        matchCount = all.filter(s => /^-?\d+([.,]\d+)?$/.test(String(s).replace(',', '.'))).length;
-        break;
       case 'vatRate': {
         const stdRates = [0, 5, 9, 21];
         matchCount = all.filter(s => {
@@ -265,9 +250,6 @@ var ConvyMapping = {
       counterpartyRegistrationNumber: ['kodas', 'code', 'imones kodas', 'įmonės kodas', 'registration', 'tax_code', 'pirkėjo kodas', 'tiekėjo kodas', 'registracijos numeris', 'juridinio asmens kodas', 'jak', 'company code', 'registration number', 'tax id', 'org number', 'company number', 'reg no', 'registration_no', 'company_number', 'organization_number', 'org_no', 'company_code'],
       counterpartyVatNumber: ['pvm kodas', 'pvm mokėtojo', 'vat number', 'vat kodas', 'pirkėjo pvm', 'tiekėjo pvm', 'pvm mokėtojo kodas', 'vat no', 'vat id', 'vat code', 'vat reg', 'vat_registration', 'tax number', 'vat_number'],
       counterpartyCountry: ['šalis', 'salis', 'šalies kodas', 'salies kodas', 'country', 'valstybe', 'valstybė', 'country code', 'country_code', 'iso', 'šalies', 'country_iso'],
-      description: ['aprašymas', 'aprasymas', 'description', 'prekes', 'prekės', 'paslaugos', 'item', 'prekių aprašymas', 'desc', 'product', 'service', 'goods', 'line_description', 'product_description', 'item_description', 'prekės paslaugos'],
-      quantity: ['kiekis', 'quantity', 'qty', 'amount', 'units', 'vnt', 'kiek', 'qty_ordered', 'ordered_qty', 'quantity_ordered'],
-      unitPrice: ['kaina', 'price', 'vnt', 'unit', 'kaina vnt', 'vnt kaina', 'vieneto kaina', 'unit price', 'unit_price', 'price per unit', 'price_per_unit', 'unit_cost', 'price_vnt'],
       netAmount: ['suma be pvm', 'net', 'be pvm', 'without vat', 'without_vat', 'amount_without', 'amount_without_vat', 'amount', 'suma', 'avra', 'apmokest', 'vertė', 'verte', 'taxable', 'value', 'neto', 'apmokestinama suma', 'net amount', 'amount without vat', 'taxable amount', 'base amount', 'subtotal', 'net_amount', 'amount_net', 'suma_be_pvm'],
       vatRate: ['tarifas', 'rate', 'pvm %', 'vat rate', 'mokescio tarifas', 'mokesčio tarifas', 'tax rate', 'pvm tarifas', 'tarifas %', 'vat %', 'vat_rate', 'tax_rate', 'rate %', 'pvm_procentas'],
       vatClassificationCode: ['pvm klasifikatoriaus', 'klasifikatoriaus kodas', 'tax code', 'pvm1', 'pvm2', 'pvm3', 'pvm4', 'pvm kodas klasifikatorius', 'tax_classification', 'vat_classification_code'],
@@ -302,7 +284,7 @@ var ConvyMapping = {
 
     if (sampleRows && sampleRows.length > 0 && columnKeys.length > 0) {
       const usedColumns = new Set(Object.values(mapping).filter(v => v && v !== '—'));
-      const contentFields = ['documentType', 'counterpartyRegistrationNumber', 'counterpartyVatNumber', 'counterpartyCountry', 'description', 'quantity', 'unitPrice', 'vatRate', 'vatAmount'];
+      const contentFields = ['documentType', 'counterpartyRegistrationNumber', 'counterpartyVatNumber', 'counterpartyCountry', 'vatRate', 'vatAmount'];
       contentFields.forEach(fieldId => {
         if (mapping[fieldId] && mapping[fieldId] !== '—') return;
         let bestKey = null;

@@ -2,13 +2,41 @@
  * Excel parser using SheetJS. Reads workbook, returns sheets and row data.
  * Supports auto-detection of header row and skipping empty rows/sheets.
  */
+function convyMaybeFixUtf8Mojibake(str) {
+  if (typeof str !== 'string' || str.length < 2) return str;
+  // UTF-8 tekstą klaidingai iššifravus kaip vieno baito koduotę (pvz. Windows-1252), dažnai atsiranda Ä, Â, Å ir pan.
+  if (!/[\u00C4\u00C2\u00C5\u00C3\u0080-\u00FF]/.test(str)) return str;
+  try {
+    const bytes = new Uint8Array(str.length);
+    for (let i = 0; i < str.length; i++) bytes[i] = str.charCodeAt(i) & 0xff;
+    const repaired = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+    if (repaired === str) return str;
+    if (/[ąčęėįšųūžĄČĘĖĮŠŲŪŽ]/.test(repaired)) return repaired;
+  } catch (_) {}
+  return str;
+}
+
 const ConvyParser = {
+  cellTextValue(cell) {
+    if (!cell) return '';
+    let value = cell.w !== undefined ? cell.w : cell.v;
+    if (value != null && typeof value === 'object' && value instanceof Date) {
+      value = value.toISOString().slice(0, 10);
+    } else if (typeof value === 'string') {
+      value = convyMaybeFixUtf8Mojibake(value);
+    }
+    return value;
+  },
   /**
    * @param {ArrayBuffer} arrayBuffer - Raw file data
    * @returns {{ sheetNames: string[], sheets: Object }} sheet names and SheetJS sheet objects
    */
   readWorkbook(arrayBuffer) {
-    const wb = XLSX.read(arrayBuffer, { type: 'array', cellDates: true });
+    const wb = XLSX.read(arrayBuffer, {
+      type: 'array',
+      cellDates: true,
+      codepage: 65001,
+    });
     return {
       sheetNames: wb.SheetNames,
       sheets: wb.Sheets,
@@ -49,11 +77,7 @@ const ConvyParser = {
       for (let C = range.s.c; C <= range.e.c; C++) {
         const addr = XLSX.utils.encode_cell({ r: R, c: C });
         const cell = sheet[addr];
-        let value = cell ? (cell.w !== undefined ? cell.w : cell.v) : '';
-        if (value != null && typeof value === 'object' && value instanceof Date) {
-          value = value.toISOString().slice(0, 10);
-        }
-        row.push(value);
+        row.push(this.cellTextValue(cell));
       }
       rows.push(row);
     }
@@ -143,11 +167,7 @@ const ConvyParser = {
       for (let C = range.s.c; C <= range.e.c; C++) {
         const addr = XLSX.utils.encode_cell({ r: R, c: C });
         const cell = sheet[addr];
-        let value = cell ? (cell.w !== undefined ? cell.w : cell.v) : '';
-        if (value != null && typeof value === 'object' && value instanceof Date) {
-          value = value.toISOString().slice(0, 10);
-        }
-        row.push(value);
+        row.push(this.cellTextValue(cell));
       }
       rows.push(row);
     }

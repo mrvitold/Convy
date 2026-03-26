@@ -84,6 +84,17 @@
   const sheetSelectLabel = document.getElementById('sheet-select-label');
   const uploadLoadingEl = document.getElementById('upload-loading');
   const step1AiLoadingEl = document.getElementById('step1-ai-loading');
+  const uploadErrorEl = document.getElementById('upload-error');
+  function setUploadError(msg) {
+    if (!uploadErrorEl) return;
+    if (msg) {
+      uploadErrorEl.textContent = msg;
+      uploadErrorEl.classList.remove('hidden');
+    } else {
+      uploadErrorEl.textContent = '';
+      uploadErrorEl.classList.add('hidden');
+    }
+  }
   function getAIProvider() {
     var key = (typeof window !== 'undefined' && window.ConvyGeminiApiKey) ? (window.ConvyGeminiApiKey || '').trim() : '';
     if (key && typeof ConvyGemini !== 'undefined' && ConvyGemini.chat) return ConvyGemini;
@@ -340,13 +351,14 @@
   }
 
   function handleFile(file) {
+    setUploadError('');
     const name = file.name || 'failas.xlsx';
     if (!/\.(xlsx|xls)$/i.test(name)) {
-      alert('Pasirinkite XLSX arba XLS failą.');
+      setUploadError('Pasirinkite XLSX arba XLS failą.');
       return;
     }
     if (typeof XLSX === 'undefined') {
-      alert('Excel biblioteka neįkelta. Patikrinkite ar js/xlsx.full.min.js egzistuoja.');
+      setUploadError('Excel biblioteka neįkelta. Patikrinkite ar js/xlsx.full.min.js egzistuoja.');
       return;
     }
     if (uploadZone) uploadZone.classList.add('loading');
@@ -357,7 +369,7 @@
       if (uploadZone) uploadZone.classList.remove('loading');
       if (uploadLoadingEl) uploadLoadingEl.classList.add('hidden');
       if (step1AiStatusEl) step1AiStatusEl.textContent = '';
-      alert('Nepavyko nuskaityti failo.');
+      setUploadError('Nepavyko nuskaityti failo.');
     };
     reader.onload = () => {
       if (uploadZone) uploadZone.classList.remove('loading');
@@ -440,7 +452,7 @@
         }
       } catch (err) {
         if (step1AiStatusEl) step1AiStatusEl.textContent = '';
-        alert('Nepavyko nuskaityti failo: ' + (err.message || err));
+        setUploadError('Nepavyko nuskaityti failo: ' + (err.message || err));
       }
     };
     reader.readAsArrayBuffer(file);
@@ -666,7 +678,7 @@
     var dataType = (dataTypeEl && dataTypeEl.value) ? String(dataTypeEl.value).toUpperCase().slice(0, 1) : 'F';
     var hideDocumentType = (dataType === 'S' || dataType === 'P');
     var allFields = (ConvyMapping && ConvyMapping.excelMappableFields && ConvyMapping.excelMappableFields.length) ? ConvyMapping.excelMappableFields : [
-      {id:'invoiceNumber',label:'Sąskaitos faktūros numeris',required:true},{id:'invoiceDate',label:'Sąskaitos data',required:true},{id:'documentType',label:'Tipas (Išrašyta / Gauta)',required:true},{id:'counterpartyName',label:'Pirkėjas / Tiekėjas (pavadinimas)',required:true},{id:'counterpartyRegistrationNumber',label:'Pirkėjo / Tiekėjo kodas',required:true},{id:'counterpartyVatNumber',label:'Pirkėjo / Tiekėjo PVM kodas',required:true},{id:'netAmount',label:'Suma be PVM',required:true},{id:'vatRate',label:'Mokesčio tarifas / PVM tarifas (%)',required:true},{id:'vatAmount',label:'PVM suma',required:true},
+      {id:'invoiceNumber',label:'Sąskaitos faktūros numeris',required:true},{id:'invoiceDate',label:'Sąskaitos data',required:true},{id:'documentType',label:'Tipas (Išrašyta / Gauta)',required:true},{id:'counterpartyName',label:'Pirkėjas / Tiekėjas (pavadinimas)',required:true},{id:'counterpartyRegistrationNumber',label:'Pirkėjo / Tiekėjo kodas',required:true},{id:'counterpartyVatNumber',label:'Pirkėjo / Tiekėjo PVM kodas',required:true},{id:'netAmount',label:'Suma be PVM',required:true},{id:'vatRate',label:'Mokesčio tarifas / PVM tarifas (%) (nebūtina – skaičiuojama iš sumos be PVM ir PVM sumos)',required:false},{id:'vatAmount',label:'PVM suma',required:true},
       {id:'vatClassificationCode',label:'PVM klasifikatoriaus kodas (gali būti skaičiuojamas)',required:false}
     ];
     var fields = allFields.filter(function(f){ return f.id !== 'grossAmount'; });

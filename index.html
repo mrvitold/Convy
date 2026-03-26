@@ -45,7 +45,7 @@
         <label class="upload-zone" id="upload-zone">
           <span class="upload-zone-content">
             <p>Spustelėkite arba nutempkite Excel failą čia</p>
-            <p class="upload-hint">Tik XLSX failai</p>
+            <p class="upload-hint">Formatas: XLSX arba XLS</p>
           </span>
           <span class="upload-loading hidden" id="upload-loading" aria-live="polite">
             <span class="loading-spinner"></span>
@@ -53,6 +53,7 @@
           </span>
           <input type="file" id="file-input" accept=".xlsx,.xls" aria-label="Pasirinkite Excel failą (.xlsx arba .xls)">
         </label>
+        <p id="upload-error" class="upload-error hidden" role="alert" aria-live="assertive"></p>
         <div id="upload-result" class="upload-result hidden">
           <p><strong id="file-name"></strong> <button type="button" id="change-file-btn" class="btn-link">Pakeisti failą</button></p>
           <p id="step1-ai-status" class="step1-ai-status"></p>
@@ -178,6 +179,7 @@
           </button>
           <div id="download-section" class="download-section hidden">
             <p>XML failas paruoštas.</p>
+            <p class="download-next-step">Kitas žingsnis: įkelkite XML rinkmeną į VMI (i.SAF) ir sąskaitos bus suvestos automatiškai.</p>
             <button type="button" id="download-xml" class="btn-primary">Atsisiųsti XML</button>
           </div>
         </div>

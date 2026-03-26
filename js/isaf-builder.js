@@ -4,6 +4,16 @@
  * Structure: iSAFFile > Header > FileDescription, MasterFiles (Customers/Suppliers), SourceDocuments (SalesInvoices/PurchaseInvoices).
  */
 const ConvyISAF = {
+  /**
+   * i.SAF expects „ND“ (uppercase) when PVM kodas nežinomas (spec. pavyzdžiai).
+   */
+  normalizeVatRegistration(v) {
+    const s = (v == null ? '' : String(v)).trim();
+    if (!s) return 'ND';
+    if (/^nd$/i.test(s)) return 'ND';
+    return s;
+  },
+
   /** Escape for XML text content */
   escape(str) {
     if (str == null) return '';
@@ -33,11 +43,21 @@ const ConvyISAF = {
     return d.toISOString().slice(0, 19);
   },
 
-  /** Normalize number for XML (decimal with dot) */
+  /**
+   * Monetary fields (ISAFmonetaryType: max 2 fraction digits). Integer-cent path avoids float lexical junk (e.g. 61.949999999999996).
+   */
   formatNumber(val) {
     if (val == null || val === '') return '';
-    const n = Number(String(val).replace(',', '.'));
-    return isNaN(n) ? '' : String(n);
+    const n = Number(String(val).replace(/\s/g, '').replace(',', '.'));
+    if (isNaN(n)) return '';
+    const cents = Math.round(n * 100);
+    if (cents === 0) return '0';
+    const neg = cents < 0;
+    const v = Math.abs(cents);
+    const whole = String(Math.floor(v / 100));
+    const frac = v % 100;
+    if (frac === 0) return (neg ? '-' : '') + whole;
+    return (neg ? '-' : '') + whole + '.' + String(frac).padStart(2, '0');
   },
 
   /** Valid Lithuanian VAT tariffs (%). */
@@ -136,7 +156,7 @@ const ConvyISAF = {
     invoices.forEach(inv => {
       inv.lines.forEach(line => {
         const id = (line.counterpartyRegistrationNumber || line.counterpartyName || '').toString().trim();
-        const vat = (line.counterpartyVatNumber || '').toString().trim() || 'ND';
+        const vat = this.normalizeVatRegistration(line.counterpartyVatNumber) || 'ND';
         const country = (line.counterpartyCountry || '').toString().trim() || 'LT';
         const name = (line.counterpartyName || '').toString().trim() || 'ND';
         if (inv.isIssued && id) customers.set(id, { id, vat, country, name });
@@ -184,7 +204,7 @@ const ConvyISAF = {
       const taxPct = fmtVatRate(first.vatRate) || '21';
       const invoiceDate = fmtDate(first.invoiceDate) || startDate;
       const buyerId = (first.counterpartyRegistrationNumber || first.counterpartyName || '').toString().trim();
-      const buyerVat = (first.counterpartyVatNumber || '').toString().trim() || 'ND';
+      const buyerVat = this.normalizeVatRegistration(first.counterpartyVatNumber) || 'ND';
       const buyerCountry = (first.counterpartyCountry || '').toString().trim() || 'LT';
       const buyerName = (first.counterpartyName || '').toString().trim() || 'ND';
 
@@ -222,7 +242,7 @@ const ConvyISAF = {
       const taxPct = fmtVatRate(first.vatRate) || '21';
       const invoiceDate = fmtDate(first.invoiceDate) || startDate;
       const supplierId = (first.counterpartyRegistrationNumber || first.counterpartyName || '').toString().trim();
-      const supplierVat = (first.counterpartyVatNumber || '').toString().trim() || 'ND';
+      const supplierVat = this.normalizeVatRegistration(first.counterpartyVatNumber) || 'ND';
       const supplierCountry = (first.counterpartyCountry || '').toString().trim() || 'LT';
       const supplierName = (first.counterpartyName || '').toString().trim() || 'ND';
 

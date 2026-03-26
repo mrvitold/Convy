@@ -13,7 +13,7 @@ var ConvyMapping = {
     { id: 'selectionEndDate', label: 'Laikotarpio pabaiga', required: true, validate: 'date' },
   ],
 
-  /** i.SAF fields from Excel. Required (bold) = mandatory for valid XML; VMI requires amounts, counterparty, tax rate, tax code. */
+  /** i.SAF fields from Excel. Required (bold) = should be mapped; PVM tarifas optional if „Suma be PVM“ and „PVM suma“ allow calculation. */
   excelMappableFields: [
     { id: 'invoiceNumber', label: 'Sąskaitos faktūros numeris', required: true },
     { id: 'invoiceDate', label: 'Sąskaitos data', required: true },
@@ -23,7 +23,7 @@ var ConvyMapping = {
     { id: 'counterpartyVatNumber', label: 'Pirkėjo / Tiekėjo PVM kodas', required: true },
     { id: 'counterpartyCountry', label: 'Šalis (kodas)', required: false },
     { id: 'netAmount', label: 'Suma be PVM', required: true },
-    { id: 'vatRate', label: 'Mokesčio tarifas / PVM tarifas (%)', required: true },
+    { id: 'vatRate', label: 'Mokesčio tarifas / PVM tarifas (%) (nebūtina – skaičiuojama iš sumos be PVM ir PVM sumos)', required: false },
     { id: 'vatClassificationCode', label: 'PVM klasifikatoriaus kodas (pvz. PVM1, PVM2 – gali būti skaičiuojamas iš tarifo)', required: false },
     { id: 'vatAmount', label: 'PVM suma', required: true },
     { id: 'grossAmount', label: 'Suma su PVM (nebūtina – skaičiuojama iš Suma be PVM + PVM suma)', required: false },

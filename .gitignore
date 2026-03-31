@@ -1,2 +1,5 @@
 # Savininko API key – nekomituoti
 js/config.js
+
+# Cursor / IDE
+.cursor/

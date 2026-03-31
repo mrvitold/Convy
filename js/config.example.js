@@ -12,10 +12,10 @@ window.ConvyGeminiApiKey = '';
  */
 window.ConvyGeminiModel = '';
 
-/** GA4 Measurement ID for conversion tracking (e.g. G-XXXXXXXXXX). Leave empty to disable. */
+/** GA4: leave empty — base tag is in index.html (avoids double-loading). Set only if you remove GA4 from HTML. */
 window.ConvyGA4Id = '';
 
-/** Google Ads conversion send_to (e.g. AW-18008044667/AbCdEfGh). Set when you create a conversion action in Google Ads. */
+/** Google Ads conversion send_to (e.g. AW-18027401380/AbCdEfGh). Set when you create a conversion action in Google Ads. */
 window.ConvyAdsConversionSendTo = '';
 window.ConvyAdsPageViewSendTo = '';
 window.ConvyAdsPlayClickSendTo = '';

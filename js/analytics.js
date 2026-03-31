@@ -12,26 +12,27 @@
   var ADS_PLAYCLICK_SEND_TO = (typeof window !== 'undefined' && window.ConvyAdsPlayClickSendTo) ? String(window.ConvyAdsPlayClickSendTo || '').trim() : '';
 
   if (GA4_ID) {
-    (function (w, d, s, l, i) {
-      w[l] = w[l] || [];
-      w[l].push({ 'gtag': function () { w[l].push(arguments); } });
-      var f = d.getElementsByTagName(s)[0], j = d.createElement(s);
-      j.async = true;
-      j.src = 'https://www.googletagmanager.com/gtag/js?id=' + i;
-      f.parentNode.insertBefore(j, f);
-    })(window, document, 'script', 'dataLayer', GA4_ID);
-
     window.dataLayer = window.dataLayer || [];
-    function gtag() { window.dataLayer.push(arguments); }
-    window.gtag = gtag;
-    gtag('js', new Date());
-    gtag('config', GA4_ID);
+    if (typeof window.gtag !== 'function') {
+      (function (w, d, s, l, i) {
+        w[l] = w[l] || [];
+        w[l].push({ 'gtag': function () { w[l].push(arguments); } });
+        var f = d.getElementsByTagName(s)[0], j = d.createElement(s);
+        j.async = true;
+        j.src = 'https://www.googletagmanager.com/gtag/js?id=' + i;
+        f.parentNode.insertBefore(j, f);
+      })(window, document, 'script', 'dataLayer', GA4_ID);
+      function gtag() { window.dataLayer.push(arguments); }
+      window.gtag = gtag;
+      gtag('js', new Date());
+    }
+    window.gtag('config', GA4_ID);
   }
 
   window.ConvyTrackConversion = function (eventName) {
     var payload = { send_to: ADS_SEND_TO, value: 1.0, currency: 'EUR' };
     if (typeof window.gtag === 'function') {
-      if (GA4_ID) window.gtag('event', eventName || 'xml_download');
+      window.gtag('event', eventName || 'xml_download');
       if (ADS_SEND_TO) window.gtag('event', 'conversion', payload);
     }
   };

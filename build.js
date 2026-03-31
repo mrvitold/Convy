@@ -20,13 +20,13 @@ window.ConvyGeminiApiKey = ${JSON.stringify(GEMINI_KEY)};
 /** GA4 Measurement ID for conversion tracking (e.g. G-XXXXXXXXXX). Leave empty to disable. */
 window.ConvyGA4Id = ${JSON.stringify(GA4_ID)};
 
-/** Google Ads conversion send_to (e.g. AW-18008044667/LABEL). Set when you create a conversion action. */
+/** Google Ads conversion send_to (e.g. AW-18027401380/LABEL). Set when you create a conversion action. */
 window.ConvyAdsConversionSendTo = ${JSON.stringify(ADS_SEND_TO)};
 
-/** Google Ads Page view conversion send_to (e.g. AW-18008044667/LABEL). Leave empty to disable. */
+/** Google Ads Page view conversion send_to (e.g. AW-18027401380/LABEL). Leave empty to disable. */
 window.ConvyAdsPageViewSendTo = ${JSON.stringify(ADS_PAGEVIEW_SEND_TO)};
 
-/** Google Ads Google Play click conversion send_to (e.g. AW-18008044667/LABEL). Leave empty to disable. */
+/** Google Ads Google Play click conversion send_to (e.g. AW-18027401380/LABEL). Leave empty to disable. */
 window.ConvyAdsPlayClickSendTo = ${JSON.stringify(ADS_PLAYCLICK_SEND_TO)};
 `;
 

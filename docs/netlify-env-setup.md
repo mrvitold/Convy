@@ -17,7 +17,7 @@ For convy.lt to work with AI features and GA4 tracking on the live site, add the
 | `CONVY_GA4_ID` | Your GA4 Measurement ID (e.g. `G-XXXXXXXXXX`) | For conversion tracking (optional – leave empty to disable) |
 | `CONVY_ADS_CONVERSION_SENDTO` | Google Ads conversion `send_to` (e.g. `AW-18008044667/S89fCMvVlYscEPvo84pD`) | For XML download conversion (optional) |
 | `CONVY_ADS_PAGEVIEW_SENDTO` | Google Ads Page view conversion `send_to` (e.g. `AW-18008044667/QFgMCK3IpYscEPvo84pD`) | For page view conversion (optional) |
-| `CONVY_ADS_PLAYCLICK_SENDTO` | Google Ads Google Play click conversion `send_to` (e.g. `AW-18008044667/LABEL`) | For Inv3/Google Play button click (optional) |
+| `CONVY_ADS_PLAYCLICK_SENDTO` | Google Ads click conversion `send_to` (e.g. `AW-18008044667/LABEL`) | Optional; leave empty if unused |
 
 ## After Adding
 

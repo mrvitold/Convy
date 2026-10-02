@@ -69,7 +69,7 @@ Create **1–2 ad groups**:
 - **Final URL suffix** (in campaign or ad settings):  
   `utm_source=google&utm_medium=cpc&utm_campaign=convy_lt`
 
-This ensures Inv3 links get the correct referrer when users arrive from Google Ads.
+This tags convy.lt traffic when users arrive from Google Ads.
 
 ---
 

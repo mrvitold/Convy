@@ -63,4 +63,4 @@ For Google Ads, add the following UTM parameters in the campaign settings (Final
 utm_source=google&utm_medium=cpc&utm_campaign=convy_lt
 ```
 
-This enables tracking of convy.lt traffic from Google Ads and passes the correct referrer to Inv3 links when users click through.
+This enables tracking of convy.lt traffic from Google Ads.
